@@ -1,4 +1,4 @@
-/* Reset and base */
+/* reset */
 * {
   margin: 0;
   padding: 0;
@@ -11,15 +11,18 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   overflow: hidden;
   user-select: none;
+  /* show cursor on desktop, hide on mobile */
+  cursor: default;
 }
 
 canvas {
   display: block;
   background: #000;
   cursor: none;
+  touch-action: none; /* prevent default gestures on canvas */
 }
 
-/* Menu and UI containers */
+/* Center UI containers */
 #menu, #usernameSection, #modeSection, #gameContainer {
   position: absolute;
   top: 50%;
@@ -48,7 +51,7 @@ button {
   border-radius: 8px;
   color: #000;
   cursor: pointer;
-  transition: background 0.3s;
+  transition: background 0.3s ease;
 }
 
 button:hover {
@@ -56,7 +59,6 @@ button:hover {
   color: #fff;
 }
 
-/* Inputs */
 input[type="text"] {
   padding: 8px 12px;
   font-size: 1rem;
@@ -67,7 +69,7 @@ input[type="text"] {
   color: #000;
 }
 
-/* Game UI stuff */
+/* Game UI text */
 #assassinText {
   position: absolute;
   top: 15px;
@@ -76,6 +78,7 @@ input[type="text"] {
   font-size: 1.4rem;
   color: #0ff;
   text-shadow: 0 0 5px #0ff;
+  user-select: none;
 }
 
 #instructionText {
@@ -88,7 +91,7 @@ input[type="text"] {
   user-select: none;
 }
 
-#levelCounter {
+#levelDisplay {
   position: absolute;
   top: 15px;
   right: 15px;
@@ -96,6 +99,7 @@ input[type="text"] {
   font-size: 1.4rem;
   color: #0ff;
   text-shadow: 0 0 5px #0ff;
+  user-select: none;
 }
 
 /* Nitro bar */
@@ -127,7 +131,7 @@ input[type="text"] {
   transition: width 0.1s ease-out;
 }
 
-/* Joystick container */
+/* Joystick styles */
 #joystick {
   position: fixed;
   bottom: 40px;
@@ -136,6 +140,7 @@ input[type="text"] {
   height: 100px;
   touch-action: none;
   user-select: none;
+  z-index: 10;
 }
 
 #joystick-base {
@@ -161,4 +166,23 @@ input[type="text"] {
   box-shadow: 0 0 15px #0ff;
   transition: transform 0.1s ease-out;
   pointer-events: none;
+}
+
+/* Back to menu button */
+.back-btn {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: #0ff;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 20;
+}
+
+.back-btn:hover {
+  background: #06c;
+  color: #fff;
 }
