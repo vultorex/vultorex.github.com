@@ -1,4 +1,4 @@
-/* reset */
+/* Base styles */
 * {
   margin: 0;
   padding: 0;
@@ -7,34 +7,29 @@
 
 body {
   background: #111;
-  color: #eee;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #fff;
+  font-family: Arial, sans-serif;
   overflow: hidden;
   user-select: none;
-  /* show cursor on desktop, hide on mobile */
-  cursor: default;
 }
 
 canvas {
   display: block;
   background: #000;
   cursor: none;
-  touch-action: none; /* prevent default gestures on canvas */
 }
 
-/* Center UI containers */
+/* Menu and UI containers */
 #menu, #usernameSection, #modeSection, #gameContainer {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   background: #222;
-  padding: 20px 30px;
-  border-radius: 12px;
-  box-shadow: 0 0 20px #0ff;
+  padding: 20px;
+  border-radius: 10px;
   text-align: center;
   max-width: 90vw;
-  max-height: 90vh;
 }
 
 .hidden {
@@ -42,28 +37,26 @@ canvas {
 }
 
 button {
-  background: #0ff;
+  background: #444;
   border: none;
-  padding: 10px 22px;
+  color: white;
+  padding: 10px 20px;
   margin: 8px;
   font-size: 1rem;
-  font-weight: 600;
-  border-radius: 8px;
-  color: #000;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.3s ease;
 }
 
 button:hover {
-  background: #06c;
-  color: #fff;
+  background: #666;
 }
 
+/* Input */
 input[type="text"] {
   padding: 8px 12px;
   font-size: 1rem;
-  border-radius: 8px;
-  border: 2px solid #0ff;
+  border-radius: 6px;
+  border: 2px solid #555;
   outline: none;
   width: 180px;
   color: #000;
@@ -74,11 +67,9 @@ input[type="text"] {
   position: absolute;
   top: 15px;
   left: 15px;
-  font-weight: 700;
-  font-size: 1.4rem;
+  font-weight: bold;
+  font-size: 1.3rem;
   color: #0ff;
-  text-shadow: 0 0 5px #0ff;
-  user-select: none;
 }
 
 #instructionText {
@@ -86,40 +77,34 @@ input[type="text"] {
   top: 60px;
   left: 15px;
   font-size: 1.1rem;
-  font-weight: 500;
-  color: #eee;
-  user-select: none;
+  color: #ddd;
 }
 
-#levelDisplay {
+#levelCounter {
   position: absolute;
   top: 15px;
   right: 15px;
-  font-weight: 700;
-  font-size: 1.4rem;
+  font-weight: bold;
+  font-size: 1.3rem;
   color: #0ff;
-  text-shadow: 0 0 5px #0ff;
-  user-select: none;
 }
 
-/* Nitro bar */
+/* Nitro Bar */
 #nitroContainer {
   position: absolute;
   bottom: 25px;
   right: 25px;
   width: 200px;
   font-size: 1rem;
-  color: #ddd;
-  user-select: none;
+  color: #ccc;
   text-align: left;
-  font-weight: 500;
 }
 
 #nitroBar {
-  background: #444;
-  border-radius: 10px;
-  height: 18px;
-  margin-top: 6px;
+  background: #333;
+  border-radius: 8px;
+  height: 16px;
+  margin-top: 5px;
   overflow: hidden;
 }
 
@@ -127,11 +112,10 @@ input[type="text"] {
   height: 100%;
   width: 0%;
   background: #0ff;
-  border-radius: 10px 0 0 10px;
-  transition: width 0.1s ease-out;
+  transition: width 0.1s ease;
 }
 
-/* Joystick styles */
+/* Joystick */
 #joystick {
   position: fixed;
   bottom: 40px;
@@ -139,50 +123,24 @@ input[type="text"] {
   width: 100px;
   height: 100px;
   touch-action: none;
-  user-select: none;
-  z-index: 10;
 }
 
 #joystick-base {
   position: absolute;
   width: 100px;
   height: 100px;
-  background: rgba(0, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 50%;
-  top: 0;
-  left: 0;
-  box-shadow: 0 0 10px #0ff inset;
 }
 
 #joystick-knob {
   position: absolute;
   width: 60px;
   height: 60px;
-  background: #0ff;
+  background: #888;
   border-radius: 50%;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 15px #0ff;
-  transition: transform 0.1s ease-out;
   pointer-events: none;
-}
-
-/* Back to menu button */
-.back-btn {
-  position: absolute;
-  top: 15px;
-  left: 15px;
-  background: #0ff;
-  font-weight: 600;
-  border-radius: 8px;
-  padding: 8px 16px;
-  cursor: pointer;
-  user-select: none;
-  z-index: 20;
-}
-
-.back-btn:hover {
-  background: #06c;
-  color: #fff;
 }
