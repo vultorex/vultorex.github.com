@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vultorex.io</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Main menu -->
+  <div id="menu">
+    <h1>Vultorex.io</h1>
+    <button id="startBtn">Start</button>
+  </div>
+
+  <!-- Username input -->
+  <div id="usernameSection" class="hidden">
+    <h2>Enter Username</h2>
+    <label for="usernameInput" class="visually-hidden">Username</label>
+    <input type="text" id="usernameInput" maxlength="12" placeholder="Your username" />
+    <button id="continueBtn">Continue</button>
+  </div>
+
+  <!-- Mode selection -->
+  <div id="modeSection" class="hidden">
+    <h2>Select Mode</h2>
+    <button id="assassinMode">Assassination Mode</button>
+    <button id="classicalMode">Classical Mode</button>
+    <button id="explosionMode">Explosion Mode</button>
+    <button id="backToUsername">Back</button>
+  </div>
+
+  <!-- Game container -->
+  <div id="gameContainer" class="hidden">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="assassinText"    class="hidden">Destroy all blue snakes</div>
+    <div id="instructionText" class="hidden"></div>
+    <div id="levelCounter">Level 1</div>
+
+    <!-- Nitro bar -->
+    <div id="nitroContainer" class="hidden">
+      <div id="nitroFill"></div>
+    </div>
+
+    <button id="backToMenu">Back</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
