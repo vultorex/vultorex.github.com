@@ -1,99 +1,123 @@
-// --- setup stuff ---
+// canvas and context setup
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-const grab = sel => document.querySelector(sel);
+const $ = (sel) => document.querySelector(sel);
 
-// menus
-const menu = grab("#menu");
-const userInputBox = grab("#usernameSection");
-const modePicker = grab("#modeSection");
-const gameUI = grab("#gameContainer");
+// UI elements
+const menu = $("#menu");
+const usernameSection = $("#usernameSection");
+const modeSection = $("#modeSection");
+const gameContainer = $("#gameContainer");
 
-const assText = grab("#assassinText");
-const instructions = grab("#instructionText");
-const levelDisplay = grab("#levelCounter");
+const assassinTxt = $("#assassinText");
+const instructionTxt = $("#instructionText");
+const lvlCounter = $("#levelCounter");
 
-const nitroBar = grab("#nitroContainer");
-const nitroFill = grab("#nitroFill");
+const nitroBar = $("#nitroContainer");
+const nitroFill = $("#nitroFill");
 
-// consts
-const MAP_W = 4000, MAP_H = 4000;
+const joystick = $("#joystick");
+const joystickBase = $("#joystick-base");
+const joystickKnob = $("#joystick-knob");
+
+// map stuff
+const MAP_WIDTH = 4000;
+const MAP_HEIGHT = 4000;
 const FPS = 60;
-const BOOST_TIME = 8 * FPS;
-const COOLDOWN_TIME = 10 * FPS;
+const BOOST_DURATION = 8 * FPS;
+const COOLDOWN_DURATION = 10 * FPS;
 
-// state
+// game state
 let currentMode = null;
 let player = null;
 let level = 1;
-let name = "";
+let playerName = "";
 let cam = { x: 0, y: 0 };
-let loop = 0;
-let showMap = true;
-let boostOn = false;
-let boostLeft = 0;
-let cooldownLeft = 0;
+let animationFrameId = 0;
+let showMinimap = true;
+let boostActive = false;
+let boostTimeLeft = 0;
+let cooldownTimeLeft = 0;
 
-// game stuff
-let snakes = [], food = [], targets = [];
-let bombs = [], tanks = [], tankShots = [], playerShots = [];
+// entities
+let snakes = [];
+let food = [];
+let targets = [];
+let bombs = [];
+let tanks = [];
+let tankShots = [];
+let playerShots = [];
 
-// utils
-const clamp = (v, a, b) => Math.max(a, Math.min(v, b));
-const distance = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-const normalize = (dx, dy) => {
-  let len = Math.hypot(dx, dy) || 1;
-  return { x: dx / len, y: dy / len };
-};
-const drawCircle = (pos, color, r) => {
+// helpers
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(val, max));
+}
+
+function dist(p1, p2) {
+  return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+}
+
+function normalizeVec(x, y) {
+  let len = Math.hypot(x, y) || 1;
+  return { x: x / len, y: y / len };
+}
+
+function drawCircle(pos, color, radius) {
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(pos.x - cam.x, pos.y - cam.y, r, 0, Math.PI * 2);
+  ctx.arc(pos.x - cam.x, pos.y - cam.y, radius, 0, Math.PI * 2);
   ctx.fill();
-};
-const toggle = (el, visible) => el.classList.toggle("hidden", !visible);
+}
 
-// start menu logic
-grab("#startBtn").onclick = () => {
+function toggle(el, show) {
+  el.classList.toggle("hidden", !show);
+}
+
+// buttons and menus logic
+$("#startBtn").onclick = () => {
   toggle(menu, false);
-  toggle(userInputBox, true);
+  toggle(usernameSection, true);
 };
 
-grab("#continueBtn").onclick = () => {
-  const val = grab("#usernameInput").value.trim();
-  if (!val) return alert("enter a name");
-  name = val;
-  toggle(userInputBox, false);
-  toggle(modePicker, true);
+$("#continueBtn").onclick = () => {
+  const val = $("#usernameInput").value.trim();
+  if (!val) {
+    alert("Please enter your username");
+    return;
+  }
+  playerName = val;
+  toggle(usernameSection, false);
+  toggle(modeSection, true);
 };
 
-grab("#backToUsername").onclick = () => {
-  toggle(modePicker, false);
-  toggle(userInputBox, true);
+$("#backToUsername").onclick = () => {
+  toggle(modeSection, false);
+  toggle(usernameSection, true);
 };
 
-grab("#assassinMode").onclick = () => startGame("assassin");
-grab("#classicalMode").onclick = () => startGame("classical");
-grab("#explosionMode").onclick = () => startGame("explosion");
-grab("#backToMenu").onclick = () => quitGame();
+$("#assassinMode").onclick = () => startGame("assassin");
+$("#classicalMode").onclick = () => startGame("classical");
+$("#explosionMode").onclick = () => startGame("explosion");
+$("#backToMenu").onclick = () => exitGame();
+
 function startGame(mode) {
   currentMode = mode;
   level = 1;
   resetAll();
 
-  toggle(modePicker, false);
-  toggle(gameUI, true);
-  toggle(assText, mode === "assassin");
+  toggle(modeSection, false);
+  toggle(gameContainer, true);
+  toggle(assassinTxt, mode === "assassin");
   toggle(nitroBar, true);
 
   updateInstructions();
   loadLevel();
-  placePlayer();
+  spawnPlayer();
 
-  loop = requestAnimationFrame(gameLoop);
+  animationFrameId = requestAnimationFrame(mainLoop);
 }
 
 function resetAll(clearPlayer = true) {
@@ -109,13 +133,15 @@ function resetAll(clearPlayer = true) {
 
 function loadLevel() {
   resetAll(false);
-  for (let i = 0; i < 60; i++) food.push({ x: Math.random() * MAP_W, y: Math.random() * MAP_H });
+  for (let i = 0; i < 60; i++) {
+    food.push({ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT });
+  }
 
   if (currentMode === "assassin") {
-    let blueCount = 2 + level;
-    let yellowCount = 8 + level * 3;
-    spawnSnakes(blueCount + yellowCount);
-    targets = snakes.slice(0, blueCount);
+    const blueSnakesCount = 2 + level;
+    const yellowSnakesCount = 8 + level * 3;
+    spawnSnakes(blueSnakesCount + yellowSnakesCount);
+    targets = snakes.slice(0, blueSnakesCount);
     targets.forEach(s => s.blue = true);
   } else if (currentMode === "classical") {
     spawnSnakes(25 + level * 4);
@@ -124,450 +150,267 @@ function loadLevel() {
     spawnTanks(5 + level);
   }
 
-  levelDisplay.textContent = `Level ${level}`;
+  lvlCounter.textContent = `Level ${level}`;
 }
 
-function quitGame() {
-  cancelAnimationFrame(loop);
-  toggle(gameUI, false);
-  toggle(modePicker, true);
+function exitGame() {
+  cancelAnimationFrame(animationFrameId);
+  toggle(gameContainer, false);
+  toggle(modeSection, true);
 }
 
 function spawnSnakes(count) {
   for (let i = 0; i < count; i++) {
     snakes.push({
-      body: [{ x: Math.random() * MAP_W, y: Math.random() * MAP_H }],
-      dir: normalize(Math.random() - 0.5, Math.random() - 0.5),
+      body: [{ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT }],
+      dir: normalizeVec(Math.random() - 0.5, Math.random() - 0.5),
       len: 6,
       alive: true,
-      blue: false
+      blue: false,
     });
   }
 }
 
 function spawnBombs(count) {
-  for (let i = 0; i < count; i++) bombs.push({ x: Math.random() * MAP_W, y: Math.random() * MAP_H, r: 8 });
+  for (let i = 0; i < count; i++) {
+    bombs.push({ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT, r: 8 });
+  }
 }
 
 function spawnTanks(count) {
-  let spacing = MAP_W / count;
+  let spacing = MAP_WIDTH / count;
   for (let i = 0; i < count; i++) {
     let x = spacing * i + spacing / 2;
-    let y = i % 2 ? MAP_H : 0;
-    tanks.push({ x, y, r: 22, hp: 4, cd: 0, dead: false });
+    let y = i % 2 ? MAP_HEIGHT : 0;
+    tanks.push({ x, y, angle: 0 });
   }
 }
 
-function placePlayer() {
-  let placed = false;
-  while (!placed) {
-    let x = Math.random() * MAP_W;
-    let y = Math.random() * MAP_H;
-    placed = snakes.every(s => distance({ x, y }, s.body[0]) > 150);
-    if (placed) {
-      player = { name, body: [{ x, y }], dir: { x: 1, y: 0 }, len: 6, alive: true };
-    }
+function spawnPlayer() {
+  player = {
+    x: MAP_WIDTH / 2,
+    y: MAP_HEIGHT / 2,
+    dir: { x: 0, y: -1 },
+    speed: 6,
+    len: 6,
+    body: [],
+    alive: true,
+    blue: false,
+  };
+
+  for (let i = 0; i < player.len; i++) {
+    player.body.push({ x: player.x, y: player.y + i * 10 });
   }
+
+  cam.x = player.x - canvas.width / 2;
+  cam.y = player.y - canvas.height / 2;
 }
 
-
-// keyboard
-document.addEventListener("keydown", e => {
-  const k = e.key.toLowerCase();
-
-  // minimap toggle
-  if (k === "m") showMap = !showMap;
-
-  if (!player || !player.alive) return;
-
-  // basic movement
-  if (k === "w" || k === "arrowup")    player.dir = { x: 0,  y: -1 };
-  if (k === "s" || k === "arrowdown")  player.dir = { x: 0,  y:  1 };
-  if (k === "a" || k === "arrowleft")  player.dir = { x: -1, y:  0 };
-  if (k === "d" || k === "arrowright") player.dir = { x: 1,  y:  0 };
-
-  // nitro (space)
-  if (k === " ") {
-    if (boostOn) {                      // turn it off early
-      boostOn = false;
-      cooldownLeft = COOLDOWN_TIME;
-    } else if (cooldownLeft === 0) {    // fire it up
-      boostOn = true;
-      boostLeft = BOOST_TIME;
-    }
-  }
-
-  // shooting – only in explosion mode, J key
-  if (k === "j" && currentMode === "explosion") {
-    const head = player.body[0];
-    if (player.dir.x || player.dir.y) {
-      playerShots.push({
-        x: head.x,
-        y: head.y,
-        dir: { ...player.dir },
-        speed: 3.5,
-        r: 5
-      });
-    }
-  }
+// controls stuff
+const keys = {};
+window.addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+  if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) e.preventDefault();
+});
+window.addEventListener("keyup", e => {
+  keys[e.key.toLowerCase()] = false;
 });
 
-// --------------------------------------------------
-// Game Loop
-// --------------------------------------------------
-function gameLoop () {
-  update();
-  render();
-  loop = requestAnimationFrame(gameLoop);
+// joystick stuff
+let joystickActive = false;
+let joyStartPos = null;
+let joyCurrentPos = null;
+let joyVec = { x: 0, y: 0 };
+
+joystick.addEventListener("touchstart", e => {
+  e.preventDefault();
+  joystickActive = true;
+  const t = e.touches[0];
+  const rect = joystick.getBoundingClientRect();
+  joyStartPos = { x: t.clientX, y: t.clientY };
+  joyCurrentPos = { x: t.clientX, y: t.clientY };
+  moveKnob();
+});
+joystick.addEventListener("touchmove", e => {
+  if (!joystickActive) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  joyCurrentPos = { x: t.clientX, y: t.clientY };
+  moveKnob();
+});
+joystick.addEventListener("touchend", e => {
+  e.preventDefault();
+  joystickActive = false;
+  joyVec = { x: 0, y: 0 };
+  joystickKnob.style.transform = "translate(-50%, -50%)";
+});
+
+function moveKnob() {
+  const rect = joystick.getBoundingClientRect();
+  let dx = joyCurrentPos.x - (rect.left + rect.width / 2);
+  let dy = joyCurrentPos.y - (rect.top + rect.height / 2);
+  let dist = Math.min(Math.hypot(dx, dy), rect.width / 2);
+  let angle = Math.atan2(dy, dx);
+  let knobX = dist * Math.cos(angle);
+  let knobY = dist * Math.sin(angle);
+  joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+
+  joyVec.x = knobX / (rect.width / 2);
+  joyVec.y = knobY / (rect.height / 2);
 }
 
-function update () {
-  if (!player?.alive) return;        // dead players don’t move
+// main loop
+function mainLoop() {
+  updateGame();
+  drawGame();
+  animationFrameId = requestAnimationFrame(mainLoop);
+}
 
-  // --- nitro timers ---
-  if (boostOn) {
-    boostLeft--;
-    if (boostLeft <= 0) {
-      boostOn = false;
-      cooldownLeft = COOLDOWN_TIME;
-    }
-  } else if (cooldownLeft > 0) {
-    cooldownLeft--;
-  }
+function updateGame() {
+  // get input dir from keyboard or joystick
+  let inputX = 0;
+  let inputY = 0;
 
-  // nitro bar width & colour
-  let pct = boostOn ? boostLeft / BOOST_TIME
-                    : 1 - cooldownLeft / COOLDOWN_TIME;
-  nitroFill.style.width = Math.round(pct * 100) + "%";
-  nitroFill.style.background = boostOn ? "#19f"
-                          : (cooldownLeft ? "#777" : "#3f3");
-
-  // --- player move & eat ---
-  let speedBase = currentMode === "explosion" ? 1.3 : 1.8;
-  let speed = boostOn ? speedBase * 1.8 : speedBase;
-
-  let head = player.body[0];
-  let nx = clamp(head.x + player.dir.x * speed, 0, MAP_W);
-  let ny = clamp(head.y + player.dir.y * speed, 0, MAP_H);
-
-  player.body.unshift({ x: nx, y: ny });
-  if (player.body.length > player.len) player.body.pop();
-
-  // munch food
-  food = food.filter(f => {
-    if (distance(f, player.body[0]) < 10) {
-      player.len++;
-      return false;
-    }
-    return true;
-  });
-
-  // update according to current mode
-  if (currentMode === "explosion") {
-    updateExplosionMode();
+  if (joystickActive) {
+    inputX = joyVec.x;
+    inputY = joyVec.y;
   } else {
-    updateSnakeAI();
+    if (keys["arrowup"] || keys["w"]) inputY -= 1;
+    if (keys["arrowdown"] || keys["s"]) inputY += 1;
+    if (keys["arrowleft"] || keys["a"]) inputX -= 1;
+    if (keys["arrowright"] || keys["d"]) inputX += 1;
   }
 
-  // basic collisions between player & snakes
-  handleSnakeCollisions();
-
-  // assassination complete check
-  if (currentMode === "assassin" && targets.every(t => !t.alive)) {
-    missionAccomplished();
+  if (inputX !== 0 || inputY !== 0) {
+    const norm = normalizeVec(inputX, inputY);
+    player.dir = norm;
   }
 
-  // follow cam
-  cam.x = clamp(player.body[0].x - canvas.width / 2,  0, MAP_W - canvas.width);
-  cam.y = clamp(player.body[0].y - canvas.height / 2, 0, MAP_H - canvas.height);
-}
-
-// -------------------------------------------
-// AI for classical and assassination modes
-// -------------------------------------------
-function updateSnakeAI () {
-  snakes.forEach(s => {
-    if (!s.alive) return;
-
-    let tgt = player.body[0];               // always chase player
-    let noiseX = (Math.random() - 0.5) * 0.4;
-    let noiseY = (Math.random() - 0.5) * 0.4;
-
-    // blue snakes ~ super‑locked; yellows add wiggle
-    if (s.blue) {
-      s.dir = normalize(tgt.x - s.body[0].x, tgt.y - s.body[0].y);
-      moveSnake(s, 1.5);
+  // nitro boost handling
+  if (keys[" "]) {
+    if (boostTimeLeft > 0) {
+      boostActive = true;
+      boostTimeLeft--;
     } else {
-      s.dir = normalize(tgt.x - s.body[0].x + noiseX,
-                        tgt.y - s.body[0].y + noiseY);
-      moveSnake(s, 1.3);
+      boostActive = false;
+      if (cooldownTimeLeft === 0) cooldownTimeLeft = COOLDOWN_DURATION;
     }
-  });
-}
-
-function moveSnake (s, vel) {
-  let h = s.body[0];
-  let nextX = clamp(h.x + s.dir.x * vel, 0, MAP_W);
-  let nextY = clamp(h.y + s.dir.y * vel, 0, MAP_H);
-  s.body.unshift({ x: nextX, y: nextY });
-  if (s.body.length > s.len) s.body.pop();
-}
-
-// -------------------------------------------
-// Explosion mode – tanks, bombs, bullets, why did i do this
-// -------------------------------------------
-function updateExplosionMode () {
-  // tanks move + shoot
-  tanks.forEach(t => {
-    if (t.dead) return;
-    let d = normalize(player.body[0].x - t.x, player.body[0].y - t.y);
-    t.x = clamp(t.x + d.x * 0.6, 0, MAP_W);
-    t.y = clamp(t.y + d.y * 0.6, 0, MAP_H);
-
-    if (--t.cd <= 0) {
-      tankShots.push({ x: t.x, y: t.y, dir: d, speed: 1.7, r: 6 });
-      t.cd = 110;          // little breather between shots
+  } else {
+    boostActive = false;
+    if (boostTimeLeft < BOOST_DURATION && cooldownTimeLeft === 0) {
+      boostTimeLeft++;
     }
-  });
-
-  // tank bullets
-  tankShots = tankShots.filter(b => {
-    b.x += b.dir.x * b.speed;
-    b.y += b.dir.y * b.speed;
-
-    if (distance(b, player.body[0]) < b.r + 6) {
-      playerDies();
-      return false;
-    }
-
-    return b.x > -20 && b.x < MAP_W + 20 &&
-           b.y > -20 && b.y < MAP_H + 20;
-  });
-
-  // player bullets
-  playerShots = playerShots.filter(b => {
-    b.x += b.dir.x * b.speed;
-    b.y += b.dir.y * b.speed;
-
-    for (let t of tanks) {
-      if (t.dead) continue;
-      if (distance(b, t) < b.r + t.r) {
-        t.hp--;
-        if (t.hp <= 0) t.dead = true;
-        return false;        // bullet gone
-      }
-    }
-
-    return b.x > -20 && b.x < MAP_W + 20 &&
-           b.y > -20 && b.y < MAP_H + 20;
-  });
-
-  // done? next level
-  if (tanks.every(t => t.dead)) {
-    level++;
-    loadLevel();
-    placePlayer();
   }
-}
 
-// --------------------------------------------------
-// snake  player collisions
-// --------------------------------------------------
-function handleSnakeCollisions () {
+  if (cooldownTimeLeft > 0) cooldownTimeLeft--;
+
+  // update nitro bar UI
+  nitroFill.style.width = `${(boostTimeLeft / BOOST_DURATION) * 100}%`;
+
+  // move player
+  let spd = boostActive ? player.speed * 2.1 : player.speed;
+  player.x += player.dir.x * spd;
+  player.y += player.dir.y * spd;
+
+  // keep inside circular map bounds
+  const centerX = MAP_WIDTH / 2;
+  const centerY = MAP_HEIGHT / 2;
+  const maxRadius = MAP_WIDTH / 2 - 20;
+  let distToCenter = dist(player, { x: centerX, y: centerY });
+  if (distToCenter > maxRadius) {
+    let dirToCenter = normalizeVec(centerX - player.x, centerY - player.y);
+    player.x = centerX - dirToCenter.x * maxRadius;
+    player.y = centerY - dirToCenter.y * maxRadius;
+  }
+
+  // update player body
+  player.body.unshift({ x: player.x, y: player.y });
+  while (player.body.length > player.len * 5) player.body.pop();
+
+  cam.x = player.x - canvas.width / 2;
+  cam.y = player.y - canvas.height / 2;
+
+  // simple AI snake wandering
   snakes.forEach(s => {
-    if (!s.alive) return;
-
-    const snakeHead = s.body[0];
-
-    // head‑to‑head = snake dies
-    if (distance(player.body[0], snakeHead) < 10) {
-      s.alive = false;
-      return;
+    if (Math.random() < 0.02) {
+      s.dir = normalizeVec(Math.random() - 0.5, Math.random() - 0.5);
     }
+    s.body[0].x += s.dir.x * 2;
+    s.body[0].y += s.dir.y * 2;
 
-    // player bumps snake body → rip
-    for (let i = 1; i < s.body.length; i++) {
-      if (distance(player.body[0], s.body[i]) < 8) {
-        playerDies();
-        return;
-      }
-    }
-
-    // snake head into player body → snake dies
-    for (let i = 1; i < player.body.length; i++) {
-      if (distance(snakeHead, player.body[i]) < 8) {
-        s.alive = false;
-        break;
-      }
-    }
+    s.body.unshift({ x: s.body[0].x, y: s.body[0].y });
+    while (s.body.length > s.len * 5) s.body.pop();
   });
 }
 
-// --------------------------------------------------
-// death, mission complete, restart bruuuuuh
-// --------------------------------------------------
-function playerDies () {
-  player.alive = false;
-  boostOn = false;
-}
-
-function missionAccomplished () {
-  cancelAnimationFrame(loop);
-
-  // dark overlay
-  ctx.fillStyle = "rgba(0,0,0,0.75)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "#0f0";
-  ctx.font = "48px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("MISSION COMPLETE", canvas.width / 2, canvas.height / 2 - 20);
-
-  // next button (only add once)
-  if (!grab("#nextAssBtn")) {
-    const btn = document.createElement("button");
-    btn.id = "nextAssBtn";
-    btn.textContent = "NEXT ASSASSINATION";
-    btn.style.position = "absolute";
-    btn.style.left = "50%";
-    btn.style.top = (canvas.height / 2 + 20) + "px";
-    btn.style.transform = "translateX(-50%)";
-    btn.style.padding = "12px 26px";
-    btn.style.fontSize = "20px";
-    btn.style.zIndex = 1000;
-    gameUI.appendChild(btn);
-
-    btn.onclick = () => {
-      btn.remove();
-      level++;
-      loadLevel();
-      placePlayer();
-      loop = requestAnimationFrame(gameLoop);
-    };
-  }
-}
-
-function showRestartButton () {
-  if (grab("#restartBtn")) return;
-
-  const b = document.createElement("button");
-  b.id = "restartBtn";
-  b.textContent = "Restart";
-  gameUI.appendChild(b);
-
-  b.onclick = () => {
-    b.remove();
-    level = 1;
-    boostOn = false;
-    boostLeft = 0;
-    cooldownLeft = 0;
-
-    loadLevel();
-    placePlayer();
-    updateInstructions();
-  };
-}
-
-// --------------------------------------------------
-// drawing
-// --------------------------------------------------
-function render () {
+function drawGame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // world border
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeRect(-cam.x, -cam.y, MAP_W, MAP_H);
+  // map circle border
+  ctx.strokeStyle = "#555";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(MAP_WIDTH / 2 - cam.x, MAP_HEIGHT / 2 - cam.y, MAP_WIDTH / 2 - 10, 0, Math.PI * 2);
+  ctx.stroke();
 
-  // bits & bobs
-  food.forEach(f => drawCircle(f, "red", 4));
-  bombs.forEach(b => drawCircle(b, "#111", b.r));
-  tankShots.forEach(s => drawCircle(s, "orange", s.r * 2));
-  playerShots.forEach(s => drawCircle(s, "yellow", s.r));
+  // draw food
+  food.forEach(f => drawCircle(f, "red", 6));
 
-  snakes.forEach(s => {
-    if (!s.alive) return;
-    const c = s.blue ? "blue" : "yellow";
-    s.body.forEach(seg => drawCircle(seg, c, 6));
-  });
-
-  tanks.forEach(t => {
-    if (t.dead) return;
-    drawCircle(t, "gray", t.r);
-    drawTankHP(t);
-  });
-
-  player.body.forEach(seg => drawCircle(seg, "lime", 6));
-
-  // dead overlay
-  if (!player.alive) {
-    ctx.fillStyle = "#fff";
-    ctx.font = "40px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2 - 20);
-    showRestartButton();
-  }
-
-  // minimap
-  if (showMap) drawMini();
-}
-
-function drawTankHP (t) {
-  const barW = 44, barH = 6;
-  let x = t.x - barW / 2 - cam.x;
-  let y = t.y - t.r - 12 - cam.y;
-
-  ctx.fillStyle = "black";
-  ctx.fillRect(x, y, barW, barH);
-
-  ctx.fillStyle = "lime";
-  ctx.fillRect(x, y, barW * (t.hp / 4), barH);
-
-  ctx.strokeStyle = "white";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, barW, barH);
-}
-
-function drawMini () {
-  const SIZE = 180, PAD = 20;
-  const mx = canvas.width - SIZE - PAD;
-  const my = canvas.height - SIZE - PAD;
-  const scale = SIZE / Math.max(MAP_W, MAP_H);
-
-  ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.6)";
-  ctx.fillRect(mx, my, SIZE, SIZE);
-
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(mx, my, SIZE, SIZE);
-
-  const dot = (e, color, r = 3) => {
-    ctx.fillStyle = color;
+  // bombs
+  bombs.forEach(b => {
+    ctx.fillStyle = "orange";
     ctx.beginPath();
-    ctx.arc(mx + e.x * scale, my + e.y * scale, r, 0, Math.PI * 2);
+    ctx.arc(b.x - cam.x, b.y - cam.y, b.r, 0, Math.PI * 2);
     ctx.fill();
-  };
+  });
 
-  food.forEach(f => dot(f, "red", 2));
-  bombs.forEach(b => dot(b, "#111", 2));
-  snakes.forEach(s => s.alive && dot(s.body[0], s.blue ? "blue" : "yellow", 3));
-  tanks.forEach(t => !t.dead && dot(t, "gray", 6));
-  tankShots.forEach(s => dot(s, "orange", 4));
-  playerShots.forEach(s => dot(s, "yellow", 2));
+  // tanks
+  tanks.forEach(t => {
+    ctx.fillStyle = "gray";
+    ctx.fillRect(t.x - cam.x - 15, t.y - cam.y - 15, 30, 30);
+  });
 
-  dot(player.body[0], "lime", 4);
-  ctx.restore();
+  // snakes (blue or yellow)
+  snakes.forEach(s => {
+    const color = s.blue ? "blue" : "yellow";
+    s.body.forEach((p, i) => {
+      drawCircle(p, color, 5 - i * 0.05);
+    });
+  });
+
+  // player snake
+  player.body.forEach((p, i) => {
+    drawCircle(p, "white", 6 - i * 0.08);
+  });
+
+  // instructions text
+  instructionTxt.textContent = currentMode === "assassin"
+    ? "Destroy all blue snakes"
+    : currentMode === "classical"
+      ? "Eat food and survive"
+      : currentMode === "explosion"
+        ? "Avoid bombs and tanks"
+        : "";
+  toggle(instructionTxt, true);
 }
 
-// --------------------------------------------------
-// instruction stuff bar
-// --------------------------------------------------
-function updateInstructions () {
-  const base = "Move: WASD/Arrows  |  Toggle Map: M  |  Nitro: Space";
-  const extra = currentMode === "explosion" ? "  |  Shoot: J"
-              : currentMode === "assassin"  ? "  |  Goal: eat blue snakes"
-              : "";
-  instructions.textContent = base + extra;
-  toggle(instructions, true);
+// resize canvas when window size changes
+window.addEventListener("resize", () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+function updateInstructions() {
+  // could add more instruction updates here
 }
+
+// init on page load
+function init() {
+  toggle(menu, true);
+  toggle(usernameSection, false);
+  toggle(modeSection, false);
+  toggle(gameContainer, false);
+  toggle(joystick, window.matchMedia("(pointer: coarse)").matches);
+}
+
+init();
