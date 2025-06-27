@@ -1,144 +1,186 @@
-html, body {
+/* reset stuff */
+* {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #000;
-  color: #fff;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* helper for hiding */
 .hidden {
-  display: none !important;
+  display: none;
 }
 
-#menu, #usernameSection, #modeSection {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  z-index: 1000;
-}
-
-h1, h2 {
-  margin: 0;
-  font-weight: normal;
-}
-
-button {
-  background: #222;
-  border: none;
-  border-radius: 8px;
-  padding: 12px 30px;
-  font-size: 18px;
+/* overall body style */
+body {
+  background: #111;
   color: white;
+  text-align: center;
+  user-select: none;
+  overflow: hidden; /* no scroll */
+  height: 100vh;
+  position: relative;
+}
+
+/* menu and screens */
+#menu, #usernameSection, #modeSection, #gameContainer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #222;
+  border-radius: 12px;
+  padding: 30px 40px;
+  box-shadow: 0 0 15px #000;
+  width: 320px;
+}
+
+h1 {
+  margin-bottom: 20px;
+  font-size: 2.5rem;
+  letter-spacing: 2px;
+}
+
+h2 {
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+/* buttons */
+button {
   cursor: pointer;
+  background: #444;
+  border: none;
+  color: white;
+  padding: 12px 24px;
+  margin: 8px 0;
+  font-size: 1rem;
+  border-radius: 6px;
+  transition: background 0.3s ease;
+  width: 100%;
 }
 
 button:hover {
-  background: #444;
+  background: #666;
 }
 
+/* inputs */
 input[type="text"] {
-  padding: 10px;
-  font-size: 18px;
-  border-radius: 6px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
   border: none;
-  text-align: center;
-  width: 200px;
+  border-radius: 6px;
+  font-size: 1.1rem;
 }
 
-#gameContainer {
-  width: 100vw;
-  height: 100vh;
-  position: relative;
-  background: black;
-}
-
-#gameCanvas {
-  display: block;
-  width: 100vw;
-  height: 100vh;
-  background: black;
-}
-
+/* game UI extras */
 #assassinText {
-  position: absolute;
-  top: 15px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 20px;
   font-weight: bold;
-  color: blue;
-  text-shadow: 0 0 6px blue;
-  z-index: 10;
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+  color: #00aaff;
 }
 
 #instructionText {
-  position: absolute;
-  top: 45px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 14px;
-  font-weight: bold;
-  z-index: 10;
-  text-shadow: 0 0 5px #000;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
 }
 
 #levelCounter {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  font-weight: bold;
-  font-size: 20px;
-  text-shadow: 0 0 5px black;
-  z-index: 10;
+  top: 15px;
+  left: 15px;
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: #eee;
 }
 
+/* nitro bar */
 #nitroContainer {
   position: absolute;
-  bottom: 80px;
-  left: 20px;
-  width: 160px;
-  height: 14px;
-  border: 1px solid #666;
-  background: #333;
-  border-radius: 7px;
+  bottom: 25px;
+  right: 25px;
+  width: 200px;
+  text-align: left;
+  font-size: 1rem;
+  color: #ddd;
+  user-select: none;
+}
+
+#nitroBar {
+  background: #444;
+  height: 18px;
+  border-radius: 10px;
+  margin-top: 6px;
   overflow: hidden;
-  z-index: 10;
 }
 
 #nitroFill {
+  height: 100%;
+  width: 0%;
+  background: #0ff;
+  border-radius: 10px 0 0 10px;
+  transition: width 0.1s ease-out;
+}
+
+/* joystick for mobile */
+#joystick {
+  position: fixed;
+  bottom: 30px;
+  left: 30px;
+  width: 100px;
+  height: 100px;
+  touch-action: none;
+  user-select: none;
+  z-index: 10;
+}
+
+#joystick-base {
+  position: absolute;
   width: 100%;
   height: 100%;
-  background: lime;
-  transition: width 0.1s linear;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
 }
 
-#backToMenu, #restartBtn {
+#joystick-knob {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
-  padding: 8px 16px;
-  font-size: 14px;
-  background: #222;
-  color: #fff;
-  border: none;
+  top: 50%;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  background: #0ff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform 0.1s ease-out;
+}
+
+/* canvas covers full screen */
+#gameCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  background: #000;
+  cursor: crosshair;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* back button inside game */
+.back-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: auto;
+  max-width: 150px;
+  font-size: 1rem;
+  background: #a33;
   border-radius: 6px;
-  z-index: 100;
-  cursor: pointer;
+  padding: 10px 15px;
 }
 
-#restartBtn {
-  bottom: 70px;
+.back-btn:hover {
+  background: #d44;
 }
-
-#backToMenu:hover, #restartBtn:hover {
-  background: #555;
-}
-
