@@ -1,10 +1,20 @@
-// canvas and context setup
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// Grab elements helper
+const $ = (selector) => document.querySelector(selector);
 
-const $ = (sel) => document.querySelector(sel);
+// Canvas & context
+const canvas = $("#gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// Set canvas size
+function setCanvasSize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+setCanvasSize();
+window.addEventListener("resize", setCanvasSize);
+window.addEventListener("orientationchange", () => {
+  setTimeout(setCanvasSize, 300); // slight delay for orientation change
+});
 
 // UI elements
 const menu = $("#menu");
@@ -12,37 +22,38 @@ const usernameSection = $("#usernameSection");
 const modeSection = $("#modeSection");
 const gameContainer = $("#gameContainer");
 
-const assassinTxt = $("#assassinText");
-const instructionTxt = $("#instructionText");
-const lvlCounter = $("#levelCounter");
+const assassinText = $("#assassinText");
+const instructionText = $("#instructionText");
+const levelDisplay = $("#levelDisplay");
 
-const nitroBar = $("#nitroContainer");
+const nitroContainer = $("#nitroContainer");
 const nitroFill = $("#nitroFill");
 
 const joystick = $("#joystick");
 const joystickBase = $("#joystick-base");
 const joystickKnob = $("#joystick-knob");
 
-// map stuff
-const MAP_WIDTH = 4000;
-const MAP_HEIGHT = 4000;
-const FPS = 60;
-const BOOST_DURATION = 8 * FPS;
-const COOLDOWN_DURATION = 10 * FPS;
+const backToMenuBtn = $("#backToMenu");
 
-// game state
-let currentMode = null;
+// Constants
+const MAP_SIZE = 4000;
+const FPS = 60;
+
+const BOOST_MAX = 8 * FPS;
+const COOLDOWN_MAX = 10 * FPS;
+
+// Game state
+let mode = null;
 let player = null;
 let level = 1;
-let playerName = "";
-let cam = { x: 0, y: 0 };
-let animationFrameId = 0;
-let showMinimap = true;
-let boostActive = false;
-let boostTimeLeft = 0;
-let cooldownTimeLeft = 0;
+let username = "";
+let camera = { x: 0, y: 0 };
+let animId = 0;
 
-// entities
+let nitroActive = false;
+let nitroTimeLeft = BOOST_MAX;
+let nitroCooldown = 0;
+
 let snakes = [];
 let food = [];
 let targets = [];
@@ -51,32 +62,29 @@ let tanks = [];
 let tankShots = [];
 let playerShots = [];
 
-// helpers
+// Utils
 function clamp(val, min, max) {
   return Math.max(min, Math.min(val, max));
 }
-
-function dist(p1, p2) {
-  return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
-
-function normalizeVec(x, y) {
-  let len = Math.hypot(x, y) || 1;
+function normalize(x, y) {
+  const len = Math.hypot(x, y) || 1;
   return { x: x / len, y: y / len };
 }
-
 function drawCircle(pos, color, radius) {
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(pos.x - cam.x, pos.y - cam.y, radius, 0, Math.PI * 2);
+  ctx.arc(pos.x - camera.x, pos.y - camera.y, radius, 0, Math.PI * 2);
   ctx.fill();
 }
-
 function toggle(el, show) {
   el.classList.toggle("hidden", !show);
 }
 
-// buttons and menus logic
+// -- UI Buttons --
+
 $("#startBtn").onclick = () => {
   toggle(menu, false);
   toggle(usernameSection, true);
@@ -85,10 +93,10 @@ $("#startBtn").onclick = () => {
 $("#continueBtn").onclick = () => {
   const val = $("#usernameInput").value.trim();
   if (!val) {
-    alert("Please enter your username");
+    alert("Please type a username first!");
     return;
   }
-  playerName = val;
+  username = val;
   toggle(usernameSection, false);
   toggle(modeSection, true);
 };
@@ -101,26 +109,36 @@ $("#backToUsername").onclick = () => {
 $("#assassinMode").onclick = () => startGame("assassin");
 $("#classicalMode").onclick = () => startGame("classical");
 $("#explosionMode").onclick = () => startGame("explosion");
-$("#backToMenu").onclick = () => exitGame();
 
-function startGame(mode) {
-  currentMode = mode;
+backToMenuBtn.onclick = () => {
+  cancelAnimationFrame(animId);
+  toggle(gameContainer, false);
+  toggle(modeSection, true);
+  // Reset joystick and keys on back to menu
+  joystickActive = false;
+  joyVector = { x: 0, y: 0 };
+};
+
+// -- Game setup --
+
+function startGame(selectedMode) {
+  mode = selectedMode;
   level = 1;
-  resetAll();
+  resetEntities(true);
 
   toggle(modeSection, false);
   toggle(gameContainer, true);
-  toggle(assassinTxt, mode === "assassin");
-  toggle(nitroBar, true);
+  toggle(assassinText, mode === "assassin");
+  toggle(nitroContainer, true);
 
-  updateInstructions();
-  loadLevel();
+  updateInstructionText();
+  loadLevelData();
   spawnPlayer();
 
-  animationFrameId = requestAnimationFrame(mainLoop);
+  animId = requestAnimationFrame(gameLoop);
 }
 
-function resetAll(clearPlayer = true) {
+function resetEntities(clearPlayer = true) {
   snakes = [];
   food = [];
   targets = [];
@@ -131,39 +149,35 @@ function resetAll(clearPlayer = true) {
   if (clearPlayer) player = null;
 }
 
-function loadLevel() {
-  resetAll(false);
+function loadLevelData() {
+  resetEntities(false);
+
+  // add food randomly
   for (let i = 0; i < 60; i++) {
-    food.push({ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT });
+    food.push({ x: Math.random() * MAP_SIZE, y: Math.random() * MAP_SIZE });
   }
 
-  if (currentMode === "assassin") {
-    const blueSnakesCount = 2 + level;
-    const yellowSnakesCount = 8 + level * 3;
-    spawnSnakes(blueSnakesCount + yellowSnakesCount);
-    targets = snakes.slice(0, blueSnakesCount);
+  if (mode === "assassin") {
+    let blueCount = 2 + level;
+    let yellowCount = 8 + level * 3;
+    spawnSnakes(blueCount + yellowCount);
+    targets = snakes.slice(0, blueCount);
     targets.forEach(s => s.blue = true);
-  } else if (currentMode === "classical") {
+  } else if (mode === "classical") {
     spawnSnakes(25 + level * 4);
-  } else if (currentMode === "explosion") {
+  } else if (mode === "explosion") {
     spawnBombs(8 + level * 2);
     spawnTanks(5 + level);
   }
 
-  lvlCounter.textContent = `Level ${level}`;
+  levelDisplay.textContent = `Level ${level}`;
 }
 
-function exitGame() {
-  cancelAnimationFrame(animationFrameId);
-  toggle(gameContainer, false);
-  toggle(modeSection, true);
-}
-
-function spawnSnakes(count) {
-  for (let i = 0; i < count; i++) {
+function spawnSnakes(num) {
+  for (let i = 0; i < num; i++) {
     snakes.push({
-      body: [{ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT }],
-      dir: normalizeVec(Math.random() - 0.5, Math.random() - 0.5),
+      body: [{ x: Math.random() * MAP_SIZE, y: Math.random() * MAP_SIZE }],
+      dir: normalize(Math.random() - 0.5, Math.random() - 0.5),
       len: 6,
       alive: true,
       blue: false,
@@ -171,25 +185,25 @@ function spawnSnakes(count) {
   }
 }
 
-function spawnBombs(count) {
-  for (let i = 0; i < count; i++) {
-    bombs.push({ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT, r: 8 });
+function spawnBombs(num) {
+  for (let i = 0; i < num; i++) {
+    bombs.push({ x: Math.random() * MAP_SIZE, y: Math.random() * MAP_SIZE, r: 8 });
   }
 }
 
-function spawnTanks(count) {
-  let spacing = MAP_WIDTH / count;
-  for (let i = 0; i < count; i++) {
+function spawnTanks(num) {
+  const spacing = MAP_SIZE / num;
+  for (let i = 0; i < num; i++) {
     let x = spacing * i + spacing / 2;
-    let y = i % 2 ? MAP_HEIGHT : 0;
+    let y = (i % 2 === 0) ? MAP_SIZE : 0;
     tanks.push({ x, y, angle: 0 });
   }
 }
 
 function spawnPlayer() {
   player = {
-    x: MAP_WIDTH / 2,
-    y: MAP_HEIGHT / 2,
+    x: MAP_SIZE / 2,
+    y: MAP_SIZE / 2,
     dir: { x: 0, y: -1 },
     speed: 6,
     len: 6,
@@ -202,78 +216,93 @@ function spawnPlayer() {
     player.body.push({ x: player.x, y: player.y + i * 10 });
   }
 
-  cam.x = player.x - canvas.width / 2;
-  cam.y = player.y - canvas.height / 2;
+  camera.x = player.x - canvas.width / 2;
+  camera.y = player.y - canvas.height / 2;
 }
 
-// controls stuff
+// -- Controls --
+
 const keys = {};
 window.addEventListener("keydown", e => {
   keys[e.key.toLowerCase()] = true;
+
+  // prevent page scroll on arrows or space
   if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener("keyup", e => {
   keys[e.key.toLowerCase()] = false;
 });
 
-// joystick stuff
+// -- Joystick setup --
+// For mobile/touch controls
+
 let joystickActive = false;
 let joyStartPos = null;
 let joyCurrentPos = null;
-let joyVec = { x: 0, y: 0 };
+let joyVector = { x: 0, y: 0 };
 
 joystick.addEventListener("touchstart", e => {
   e.preventDefault();
   joystickActive = true;
-  const t = e.touches[0];
+  const touch = e.touches[0];
   const rect = joystick.getBoundingClientRect();
-  joyStartPos = { x: t.clientX, y: t.clientY };
-  joyCurrentPos = { x: t.clientX, y: t.clientY };
-  moveKnob();
+  joyStartPos = { x: touch.clientX, y: touch.clientY };
+  joyCurrentPos = { x: touch.clientX, y: touch.clientY };
+  updateJoystickKnob();
 });
+
 joystick.addEventListener("touchmove", e => {
   if (!joystickActive) return;
   e.preventDefault();
-  const t = e.touches[0];
-  joyCurrentPos = { x: t.clientX, y: t.clientY };
-  moveKnob();
+  const touch = e.touches[0];
+  joyCurrentPos = { x: touch.clientX, y: touch.clientY };
+  updateJoystickKnob();
 });
+
 joystick.addEventListener("touchend", e => {
   e.preventDefault();
   joystickActive = false;
-  joyVec = { x: 0, y: 0 };
+  joyVector = { x: 0, y: 0 };
   joystickKnob.style.transform = "translate(-50%, -50%)";
 });
 
-function moveKnob() {
+function updateJoystickKnob() {
   const rect = joystick.getBoundingClientRect();
   let dx = joyCurrentPos.x - (rect.left + rect.width / 2);
   let dy = joyCurrentPos.y - (rect.top + rect.height / 2);
-  let dist = Math.min(Math.hypot(dx, dy), rect.width / 2);
+
+  // limit knob movement to radius of base
+  const maxDist = rect.width / 2;
+  let dist = Math.min(Math.hypot(dx, dy), maxDist);
   let angle = Math.atan2(dy, dx);
+
   let knobX = dist * Math.cos(angle);
   let knobY = dist * Math.sin(angle);
+
   joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
 
-  joyVec.x = knobX / (rect.width / 2);
-  joyVec.y = knobY / (rect.height / 2);
+  joyVector.x = knobX / maxDist;
+  joyVector.y = knobY / maxDist;
 }
 
-// main loop
-function mainLoop() {
-  updateGame();
-  drawGame();
-  animationFrameId = requestAnimationFrame(mainLoop);
+// -- Main game loop --
+
+function gameLoop() {
+  update();
+  draw();
+  animId = requestAnimationFrame(gameLoop);
 }
 
-function updateGame() {
-  // get input dir from keyboard or joystick
+function update() {
+  if (!player || !player.alive) return;
+
+  // get input vector (joystick or keyboard)
   let inputX = 0;
   let inputY = 0;
 
   if (joystickActive) {
-    inputX = joyVec.x;
-    inputY = joyVec.y;
+    inputX = joyVector.x;
+    inputY = joyVector.y;
   } else {
     if (keys["arrowup"] || keys["w"]) inputY -= 1;
     if (keys["arrowdown"] || keys["s"]) inputY += 1;
@@ -282,135 +311,131 @@ function updateGame() {
   }
 
   if (inputX !== 0 || inputY !== 0) {
-    const norm = normalizeVec(inputX, inputY);
+    const norm = normalize(inputX, inputY);
     player.dir = norm;
   }
 
-  // nitro boost handling
+  // nitro boost logic
   if (keys[" "]) {
-    if (boostTimeLeft > 0) {
-      boostActive = true;
-      boostTimeLeft--;
+    if (nitroTimeLeft > 0) {
+      nitroActive = true;
+      nitroTimeLeft--;
     } else {
-      boostActive = false;
-      if (cooldownTimeLeft === 0) cooldownTimeLeft = COOLDOWN_DURATION;
+      nitroActive = false;
+      if (nitroCooldown === 0) nitroCooldown = COOLDOWN_MAX;
     }
   } else {
-    boostActive = false;
-    if (boostTimeLeft < BOOST_DURATION && cooldownTimeLeft === 0) {
-      boostTimeLeft++;
+    nitroActive = false;
+    if (nitroTimeLeft < BOOST_MAX && nitroCooldown === 0) {
+      nitroTimeLeft++;
     }
   }
 
-  if (cooldownTimeLeft > 0) cooldownTimeLeft--;
+  if (nitroCooldown > 0) nitroCooldown--;
 
   // update nitro bar UI
-  nitroFill.style.width = `${(boostTimeLeft / BOOST_DURATION) * 100}%`;
+  nitroFill.style.width = `${(nitroTimeLeft / BOOST_MAX) * 100}%`;
 
-  // move player
-  let spd = boostActive ? player.speed * 2.1 : player.speed;
-  player.x += player.dir.x * spd;
-  player.y += player.dir.y * spd;
+  // move player with speed + boost
+  let speed = nitroActive ? player.speed * 2.1 : player.speed;
+  player.x += player.dir.x * speed;
+  player.y += player.dir.y * speed;
 
-  // keep inside circular map bounds
-  const centerX = MAP_WIDTH / 2;
-  const centerY = MAP_HEIGHT / 2;
-  const maxRadius = MAP_WIDTH / 2 - 20;
-  let distToCenter = dist(player, { x: centerX, y: centerY });
+  // keep player inside circular map bounds
+  const center = { x: MAP_SIZE / 2, y: MAP_SIZE / 2 };
+  const maxRadius = MAP_SIZE / 2 - 20;
+  const distToCenter = distance(player, center);
   if (distToCenter > maxRadius) {
-    let dirToCenter = normalizeVec(centerX - player.x, centerY - player.y);
-    player.x = centerX - dirToCenter.x * maxRadius;
-    player.y = centerY - dirToCenter.y * maxRadius;
+    const dirToCenter = normalize(center.x - player.x, center.y - player.y);
+    player.x = center.x - dirToCenter.x * maxRadius;
+    player.y = center.y - dirToCenter.y * maxRadius;
   }
 
-  // update player body
+  // update player body segments
   player.body.unshift({ x: player.x, y: player.y });
   while (player.body.length > player.len * 5) player.body.pop();
 
-  cam.x = player.x - canvas.width / 2;
-  cam.y = player.y - canvas.height / 2;
+  // camera follows player
+  camera.x = player.x - canvas.width / 2;
+  camera.y = player.y - canvas.height / 2;
 
-  // simple AI snake wandering
-  snakes.forEach(s => {
+  // update AI snakes - simple wandering
+  snakes.forEach(snake => {
     if (Math.random() < 0.02) {
-      s.dir = normalizeVec(Math.random() - 0.5, Math.random() - 0.5);
+      snake.dir = normalize(Math.random() - 0.5, Math.random() - 0.5);
     }
-    s.body[0].x += s.dir.x * 2;
-    s.body[0].y += s.dir.y * 2;
+    snake.body[0].x += snake.dir.x * 2;
+    snake.body[0].y += snake.dir.y * 2;
 
-    s.body.unshift({ x: s.body[0].x, y: s.body[0].y });
-    while (s.body.length > s.len * 5) s.body.pop();
+    snake.body.unshift({ x: snake.body[0].x, y: snake.body[0].y });
+    while (snake.body.length > snake.len * 5) snake.body.pop();
   });
 }
 
-function drawGame() {
+function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // map circle border
+  // Draw circular map boundary
   ctx.strokeStyle = "#555";
   ctx.lineWidth = 5;
   ctx.beginPath();
-  ctx.arc(MAP_WIDTH / 2 - cam.x, MAP_HEIGHT / 2 - cam.y, MAP_WIDTH / 2 - 10, 0, Math.PI * 2);
+  ctx.arc(MAP_SIZE / 2 - camera.x, MAP_SIZE / 2 - camera.y, MAP_SIZE / 2 - 10, 0, Math.PI * 2);
   ctx.stroke();
 
   // draw food
   food.forEach(f => drawCircle(f, "red", 6));
 
-  // bombs
+  // draw bombs
   bombs.forEach(b => {
     ctx.fillStyle = "orange";
     ctx.beginPath();
-    ctx.arc(b.x - cam.x, b.y - cam.y, b.r, 0, Math.PI * 2);
+    ctx.arc(b.x - camera.x, b.y - camera.y, b.r, 0, Math.PI * 2);
     ctx.fill();
   });
 
-  // tanks
+  // draw tanks
   tanks.forEach(t => {
     ctx.fillStyle = "gray";
-    ctx.fillRect(t.x - cam.x - 15, t.y - cam.y - 15, 30, 30);
+    ctx.fillRect(t.x - camera.x - 15, t.y - camera.y - 15, 30, 30);
   });
 
-  // snakes (blue or yellow)
-  snakes.forEach(s => {
-    const color = s.blue ? "blue" : "yellow";
-    s.body.forEach((p, i) => {
-      drawCircle(p, color, 5 - i * 0.05);
+  // draw snakes
+  snakes.forEach(snake => {
+    const c = snake.blue ? "blue" : "yellow";
+    snake.body.forEach((pos, idx) => {
+      drawCircle(pos, c, 5 - idx * 0.05);
     });
   });
 
-  // player snake
-  player.body.forEach((p, i) => {
-    drawCircle(p, "white", 6 - i * 0.08);
+  // draw player snake in white
+  player.body.forEach((pos, idx) => {
+    drawCircle(pos, "white", 6 - idx * 0.08);
   });
 
-  // instructions text
-  instructionTxt.textContent = currentMode === "assassin"
-    ? "Destroy all blue snakes"
-    : currentMode === "classical"
-      ? "Eat food and survive"
-      : currentMode === "explosion"
-        ? "Avoid bombs and tanks"
-        : "";
-  toggle(instructionTxt, true);
+  // update instruction text depending on mode
+  if (mode === "assassin") {
+    instructionText.textContent = "Destroy all blue snakes";
+  } else if (mode === "classical") {
+    instructionText.textContent = "Eat food and survive";
+  } else if (mode === "explosion") {
+    instructionText.textContent = "Avoid bombs and tanks";
+  } else {
+    instructionText.textContent = "";
+  }
+  toggle(instructionText, true);
 }
 
-// resize canvas when window size changes
-window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
-
-function updateInstructions() {
-  // could add more instruction updates here
-}
-
-// init on page load
+// Show joystick only if device is touch capable
 function init() {
   toggle(menu, true);
   toggle(usernameSection, false);
   toggle(modeSection, false);
   toggle(gameContainer, false);
-  toggle(joystick, window.matchMedia("(pointer: coarse)").matches);
+
+  // Check for touch device
+  const isTouchDevice = ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  toggle(joystick, isTouchDevice);
 }
 
 init();
+
