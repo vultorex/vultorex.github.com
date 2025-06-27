@@ -5,48 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vultorex.io</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/png" href="favicon.png" />
 </head>
 <body>
 
-  <!-- Start Menu -->
+  <!-- main menu -->
   <div id="menu">
     <h1>Vultorex.io</h1>
-    <button id="startBtn">Start</button>
+    <button id="startBtn">Start Game</button>
   </div>
 
-  <!-- Username Input -->
+  <!-- username input -->
   <div id="usernameSection" class="hidden">
-    <h2>Enter Username</h2>
-    <input type="text" id="usernameInput" maxlength="12" placeholder="Your username" />
+    <h2>Enter your username</h2>
+    <input id="usernameInput" type="text" placeholder="Your name here" autocomplete="off" />
     <button id="continueBtn">Continue</button>
   </div>
 
-  <!-- Mode Select -->
+  <!-- mode picker -->
   <div id="modeSection" class="hidden">
-    <h2>Select Mode</h2>
-    <button id="assassinMode">Assassination Mode</button>
+    <h2>Pick a Mode</h2>
+    <button id="assassinMode">Assassin Mode</button>
     <button id="classicalMode">Classical Mode</button>
     <button id="explosionMode">Explosion Mode</button>
     <button id="backToUsername">Back</button>
   </div>
 
-  <!-- Game Area -->
+  <!-- game UI -->
   <div id="gameContainer" class="hidden">
-    <canvas id="gameCanvas"></canvas>
-
-    <div id="assassinText" class="hidden">Destroy all blue snakes</div>
-    <div id="instructionText" class="hidden"></div>
+    <div id="assassinText" class="hidden">Destroy all blue snakes!</div>
+    <div id="instructionText"></div>
     <div id="levelCounter">Level 1</div>
-
-    <div id="nitroContainer" class="hidden">
-      <div id="nitroFill"></div>
+    
+    <div id="nitroContainer">
+      Nitro Charge (SpaceBar)
+      <div id="nitroBar">
+        <div id="nitroFill"></div>
+      </div>
     </div>
 
-    <button id="backToMenu">Back</button>
+    <!-- joystick for touch devices -->
+    <div id="joystick" class="hidden">
+      <div id="joystick-base"></div>
+      <div id="joystick-knob"></div>
+    </div>
+
+    <!-- game canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <button id="backToMenu" class="back-btn">Back to Menu</button>
   </div>
 
   <script src="script.js"></script>
 </body>
 </html>
-
