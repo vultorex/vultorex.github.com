@@ -2,27 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vultorex.io</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" href="favicon.png" />
 </head>
 <body>
 
-  <!-- Main menu -->
+  <!-- main menu -->
   <div id="menu">
     <h1>Vultorex.io</h1>
     <button id="startBtn">Start Game</button>
   </div>
 
-  <!-- Username input screen -->
+  <!-- username input -->
   <div id="usernameSection" class="hidden">
     <h2>Enter your username</h2>
     <input id="usernameInput" type="text" placeholder="Your name here" autocomplete="off" />
     <button id="continueBtn">Continue</button>
   </div>
 
-  <!-- Mode selection -->
+  <!-- mode picker -->
   <div id="modeSection" class="hidden">
     <h2>Pick a Mode</h2>
     <button id="assassinMode">Assassin Mode</button>
@@ -31,11 +31,11 @@
     <button id="backToUsername">Back</button>
   </div>
 
-  <!-- Game UI -->
+  <!-- game UI -->
   <div id="gameContainer" class="hidden">
     <div id="assassinText" class="hidden">Destroy all blue snakes!</div>
     <div id="instructionText"></div>
-    <div id="levelDisplay">Level 1</div>
+    <div id="levelCounter">Level 1</div>
     
     <div id="nitroContainer">
       Nitro Charge (SpaceBar)
@@ -44,13 +44,13 @@
       </div>
     </div>
 
-    <!-- Joystick for phones yummy -->
+    <!-- joystick for touch devices -->
     <div id="joystick" class="hidden">
       <div id="joystick-base"></div>
       <div id="joystick-knob"></div>
     </div>
 
-    <!-- The main canvas boii -->
+    <!-- game canvas -->
     <canvas id="gameCanvas"></canvas>
 
     <button id="backToMenu" class="back-btn">Back to Menu</button>
