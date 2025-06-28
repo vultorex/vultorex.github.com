@@ -1,114 +1,33 @@
-/* basic reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ----- BASIC RESET ----- */
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;width:100%;background:#000;font-family:Arial,sans-serif;color:#fff;overflow:hidden}
+.hidden{display:none!important}
 
-html, body {
-  height: 100%;
-  width: 100%;
-  background: black;
-  font-family: Arial, sans-serif;
-  color: white;
-  overflow: hidden;
-}
+/* ----- MENUS ----- */
+#menu,#usernameSection,#modeSection{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;gap:20px;background:rgba(0,0,0,.92);z-index:1000}
+#menu h1{font-size:48px;margin-bottom:10px}
+button{padding:12px 26px;font-size:18px;background:#222;border:2px solid #fff;border-radius:6px;cursor:pointer}
+button:hover{background:#444}
+button.small{font-size:15px;padding:8px 18px}
 
-/* hidden class for toggling */
-.hidden {
-  display: none;
-}
+/* ----- GAME & CANVAS ----- */
+#gameCanvas{display:block;width:100vw;height:100vh;background:#000}
 
-/* --- Menu Screens --- */
-#menu, #usernameSection, #modeSection {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-}
+/* ----- OVERLAYS ----- */
+.overlay{position:absolute;user-select:none;pointer-events:none}
+#assassinText{top:20px;left:50%;transform:translateX(-50%);font-size:22px;font-weight:bold;color:#3df}
+#instructionText{top:55px;left:50%;transform:translateX(-50%);font-size:16px}
+.level{top:15px;left:20px;font-weight:bold}
 
-#menu h1 {
-  font-size: 48px;
-  margin-bottom: 20px;
-}
+/* ----- NITRO BAR (bottom‑left) ----- */
+.nitro{bottom:18px;left:18px;font-size:15px;pointer-events:none}
+#nitroFill{margin-top:4px;height:10px;width:160px;background:#3f3;border:1px solid #fff;border-radius:4px;transition:width .2s,background .2s}
+.hint{font-size:12px;color:#aaa}
 
-#usernameSection input {
-  padding: 10px;
-  font-size: 18px;
-  width: 220px;
-  margin-bottom: 10px;
-}
-
-button {
-  display: block;
-  padding: 12px 20px;
-  margin: 10px auto;
-  font-size: 18px;
-  cursor: pointer;
-  background-color: #222;
-  color: white;
-  border: 2px solid white;
-  border-radius: 6px;
-}
-
-button:hover {
-  background-color: #444;
-}
-
-/* --- Game Canvas --- */
-#gameCanvas {
-  display: block;
-  background: black;
-  width: 100vw;
-  height: 100vh;
-}
-
-/* --- Overlays --- */
-.overlay {
-  position: absolute;
-  color: white;
-  font-size: 18px;
-  padding: 6px 12px;
-  z-index: 10;
-  user-select: none;
-}
-
-#assassinText {
-  top: 15px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 22px;
-  font-weight: bold;
-  color: #3df;
-}
-
-.level {
-  top: 15px;
-  left: 20px;
-  font-weight: bold;
-}
-
-.instruction {
-  bottom: 15px;
-  left: 20px;
-  font-size: 16px;
-}
-
-/* --- Nitro Bar --- */
-.nitro {
-  bottom: 15px;
-  right: 20px;
-  font-size: 16px;
-}
-
-#nitroFill {
-  margin-top: 6px;
-  height: 8px;
-  background: #3f3;
-  width: 100%;
-  max-width: 180px;
-  border-radius: 4px;
-  transition: width 0.2s ease, background 0.2s ease;
-  border: 1px solid white;
-}
+/* ----- BACK BUTTON IN‑GAME ----- */
+.gameBack{
+  position:absolute;bottom:20px;right:20px;z-index:50;
+  background:#222;border:2px solid #fff;border-radius:6px;color:#fff;font-size:16px;cursor:pointer}
+.gameBack:hover{background:#444}
