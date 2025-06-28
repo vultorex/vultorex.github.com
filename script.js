@@ -1,416 +1,474 @@
-// canvas and context setup
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+/* ===============================================================
+   CONSTANTS & DOM
+================================================================ */
+const MAP_W = 4000, MAP_H = 4000;
+const FPS          = 60;
+const BOOST_SECS   = 8;                        // nitro duration
+const CD_SECS      = 10;                       // cooldown duration
+const BOOST_TICKS  = BOOST_SECS*FPS;
+const CD_TICKS     = CD_SECS*FPS;
 
-const $ = (sel) => document.querySelector(sel);
+const cv   = document.getElementById("gameCanvas");
+const ctx  = cv.getContext("2d");
+cv.width   = innerWidth;
+cv.height  = innerHeight;
 
-// UI elements
-const menu = $("#menu");
-const usernameSection = $("#usernameSection");
-const modeSection = $("#modeSection");
-const gameContainer = $("#gameContainer");
+const qs  = s=>document.querySelector(s);
+/* menus */
+const menuBox   = qs("#menu");
+const userBox   = qs("#usernameSection");
+const modeBox   = qs("#modeSection");
+const gameBox   = qs("#gameContainer");
+/* HUD */
+const assassinTxt = qs("#assassinText");
+const instrTxt    = qs("#instructionText");
+const lvlTxt      = qs("#levelCounter");
+const nitroBox    = qs("#nitroContainer");
+const nitroFill   = qs("#nitroFill");
 
-const assassinTxt = $("#assassinText");
-const instructionTxt = $("#instructionText");
-const lvlCounter = $("#levelCounter");
+/* ===============================================================
+   GLOBAL STATE
+================================================================ */
+let playerName  = "";
+let mode        = null;          // "assassin" | "classical" | "explosion"
+let level       = 1;
+let loopID      = 0;
+let camera      = {x:0,y:0};
 
-const nitroBar = $("#nitroContainer");
-const nitroFill = $("#nitroFill");
+/* entities */
+let player, food, snakes, targets, bombs, tanks, tankShots, plyShots;
 
-const joystick = $("#joystick");
-const joystickBase = $("#joystick-base");
-const joystickKnob = $("#joystick-knob");
+/* minimap */
+let mapOn = true;
 
-// map stuff
-const MAP_WIDTH = 4000;
-const MAP_HEIGHT = 4000;
-const FPS = 60;
-const BOOST_DURATION = 8 * FPS;
-const COOLDOWN_DURATION = 10 * FPS;
-
-// game state
-let currentMode = null;
-let player = null;
-let level = 1;
-let playerName = "";
-let cam = { x: 0, y: 0 };
-let animationFrameId = 0;
-let showMinimap = true;
+/* nitro */
 let boostActive = false;
-let boostTimeLeft = 0;
-let cooldownTimeLeft = 0;
+let boostTime   = 0;     // remaining ticks
+let coolTime    = 0;     // remaining ticks
 
-// entities
-let snakes = [];
-let food = [];
-let targets = [];
-let bombs = [];
-let tanks = [];
-let tankShots = [];
-let playerShots = [];
+/* ===============================================================
+   HELPERS
+================================================================ */
+const rand = n=>Math.random()*n;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const dist =(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+const norm =(dx,dy)=>{const l=Math.hypot(dx,dy)||1;return{x:dx/l,y:dy/l}};
+const dot =(o,c,r)=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(o.x-camera.x,o.y-camera.y,r,0,6.283);ctx.fill();};
+const toggle=(el,on)=>el.classList.toggle("hidden",!on);
 
-// helpers
-function clamp(val, min, max) {
-  return Math.max(min, Math.min(val, max));
-}
-
-function dist(p1, p2) {
-  return Math.hypot(p1.x - p2.x, p1.y - p2.y);
-}
-
-function normalizeVec(x, y) {
-  let len = Math.hypot(x, y) || 1;
-  return { x: x / len, y: y / len };
-}
-
-function drawCircle(pos, color, radius) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(pos.x - cam.x, pos.y - cam.y, radius, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function toggle(el, show) {
-  el.classList.toggle("hidden", !show);
-}
-
-// buttons and menus logic
-$("#startBtn").onclick = () => {
-  toggle(menu, false);
-  toggle(usernameSection, true);
+/* ===============================================================
+   MENU LOGIC
+================================================================ */
+qs("#startBtn").onclick = ()=>{toggle(menuBox,false); toggle(userBox,true)};
+qs("#continueBtn").onclick=()=>{
+  const v=qs("#usernameInput").value.trim();
+  if(!v) return alert("Enter a username");
+  playerName=v; toggle(userBox,false); toggle(modeBox,true);
 };
+qs("#backToUsername").onclick=()=>{toggle(modeBox,false); toggle(userBox,true)};
+qs("#assassinMode").onclick =()=>initMode("assassin");
+qs("#classicalMode").onclick=()=>initMode("classical");
+qs("#explosionMode").onclick=()=>initMode("explosion");
+qs("#backToMenu").onclick   =()=>exitGame();
 
-$("#continueBtn").onclick = () => {
-  const val = $("#usernameInput").value.trim();
-  if (!val) {
-    alert("Please enter your username");
-    return;
-  }
-  playerName = val;
-  toggle(usernameSection, false);
-  toggle(modeSection, true);
-};
-
-$("#backToUsername").onclick = () => {
-  toggle(modeSection, false);
-  toggle(usernameSection, true);
-};
-
-$("#assassinMode").onclick = () => startGame("assassin");
-$("#classicalMode").onclick = () => startGame("classical");
-$("#explosionMode").onclick = () => startGame("explosion");
-$("#backToMenu").onclick = () => exitGame();
-
-function startGame(mode) {
-  currentMode = mode;
-  level = 1;
-  resetAll();
-
-  toggle(modeSection, false);
-  toggle(gameContainer, true);
-  toggle(assassinTxt, mode === "assassin");
-  toggle(nitroBar, true);
-
+/* ===============================================================
+   INITIALISERS
+================================================================ */
+function initMode(m){
+  mode=m; level=1; resetArrays();
+  toggle(modeBox,false); toggle(gameBox,true);
+  toggle(assassinTxt,mode==="assassin");
+  toggle(nitroBox,true);
   updateInstructions();
-  loadLevel();
+  newLevel();
   spawnPlayer();
-
-  animationFrameId = requestAnimationFrame(mainLoop);
+  loopID=requestAnimationFrame(loop);
 }
 
-function resetAll(clearPlayer = true) {
-  snakes = [];
-  food = [];
-  targets = [];
-  bombs = [];
-  tanks = [];
-  tankShots = [];
-  playerShots = [];
-  if (clearPlayer) player = null;
-}
+function newLevel(){
+  resetArrays(false);
+  spawnFood(60);
 
-function loadLevel() {
-  resetAll(false);
-  for (let i = 0; i < 60; i++) {
-    food.push({ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT });
+  if(mode==="assassin"){
+    const blue=2+level, yellow=8+level*3;
+    spawnSnakes(blue+yellow);
+    targets = snakes.slice(0,blue);
+    targets.forEach(s=>s.blue=true);
   }
-
-  if (currentMode === "assassin") {
-    const blueSnakesCount = 2 + level;
-    const yellowSnakesCount = 8 + level * 3;
-    spawnSnakes(blueSnakesCount + yellowSnakesCount);
-    targets = snakes.slice(0, blueSnakesCount);
-    targets.forEach(s => s.blue = true);
-  } else if (currentMode === "classical") {
-    spawnSnakes(25 + level * 4);
-  } else if (currentMode === "explosion") {
-    spawnBombs(8 + level * 2);
-    spawnTanks(5 + level);
+  else if(mode==="classical"){
+    spawnSnakes(25+level*4);
   }
-
-  lvlCounter.textContent = `Level ${level}`;
+  else if(mode==="explosion"){
+    spawnBombs(8+level*2);
+    spawnTanks(5+level);
+  }
+  lvlTxt.textContent=`Level ${level}`;
 }
 
-function exitGame() {
-  cancelAnimationFrame(animationFrameId);
-  toggle(gameContainer, false);
-  toggle(modeSection, true);
+function exitGame(){
+  cancelAnimationFrame(loopID);
+  toggle(gameBox,false); toggle(modeBox,true);
 }
 
-function spawnSnakes(count) {
-  for (let i = 0; i < count; i++) {
-    snakes.push({
-      body: [{ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT }],
-      dir: normalizeVec(Math.random() - 0.5, Math.random() - 0.5),
-      len: 6,
-      alive: true,
-      blue: false,
+/* ===============================================================
+   ARRAYS & SPAWN
+================================================================ */
+function resetArrays(clearPlayer=true){
+  food=[]; snakes=[]; targets=[]; bombs=[]; tanks=[]; tankShots=[]; plyShots=[];
+  if(clearPlayer) player=null;
+}
+function spawnObj(arr,obj){arr.push(obj);}
+function spawnFood(n){while(n--) spawnObj(food,{x:rand(MAP_W),y:rand(MAP_H)})}
+function spawnSnakes(n){
+  while(n--)
+    spawnObj(snakes,{
+      body:[{x:rand(MAP_W),y:rand(MAP_H)}],
+      dir:norm(rand(1)-.5,rand(1)-.5),
+      len:6,alive:true,blue:false
     });
+}
+function spawnBombs(n){while(n--) spawnObj(bombs,{x:rand(MAP_W),y:rand(MAP_H),r:8})}
+function spawnTanks(count){
+  const step=MAP_W/count;
+  for(let i=0;i<count;i++){
+    const x=step*i+step/2, y=i%2?MAP_H:0;
+    spawnObj(tanks,{x,y,r:22,hp:4,cd:0,dead:false});
+  }
+}
+function spawnPlayer(){
+  let ok=false;
+  while(!ok){
+    const x=rand(MAP_W),y=rand(MAP_H);
+    ok=snakes.every(s=>dist({x,y},s.body[0])>150);
+    if(ok) player={name:playerName,body:[{x,y}],dir:{x:1,y:0},len:6,alive:true};
+  }
+}
+/* shots */
+function fire(arr,x,y,dir,speed,r){arr.push({x,y,dir,speed,r})}
+
+/* ===============================================================
+   INPUT
+================================================================ */
+document.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="m")            mapOn=!mapOn;
+  if(!player?.alive)     return;
+
+  if(["w","arrowup"].includes(k))    player.dir={x:0,y:-1};
+  if(["s","arrowdown"].includes(k))  player.dir={x:0,y:1};
+  if(["a","arrowleft"].includes(k))  player.dir={x:-1,y:0};
+  if(["d","arrowright"].includes(k)) player.dir={x:1,y:0};
+
+  /* nitro toggle */
+  if(k===" "){
+    if(boostActive){        // turn OFF early
+      boostActive=false; coolTime=CD_TICKS;
+    }else if(coolTime===0){ // turn ON
+      boostActive=true;  boostTime=BOOST_TICKS;
+    }
+  }
+
+  /* shoot (explosion) */
+  if(k==="j" && mode==="explosion"){
+    const h=player.body[0];
+    if(player.dir.x||player.dir.y) fire(plyShots,h.x,h.y,{...player.dir},3.5,5);
+  }
+});
+
+/* ===============================================================
+   GAME LOOP
+================================================================ */
+function loop(){
+  update();
+  draw();
+  loopID=requestAnimationFrame(loop);
+}
+
+/* ------------------- UPDATE ----------------------------------- */
+function update(){
+  if(!player.alive) return;
+
+  /* ----- nitro timers ----- */
+  if(boostActive){
+    if(--boostTime<=0){ boostActive=false; coolTime=CD_TICKS; }
+  }else if(coolTime>0){ --coolTime; }
+
+  /* update nitro bar */
+  const pct=boostActive?boostTime/BOOST_TICKS : 1-coolTime/CD_TICKS;
+  nitroFill.style.width=Math.round(pct*100)+"%";
+  nitroFill.style.background=boostActive?"#19f":"#3f3";   // blue active / green ready
+  if(!boostActive && coolTime>0){ nitroFill.style.background="#777"; }
+
+  /* player speed */
+  const base=mode==="explosion"?1.3:1.8;
+  const speed=boostActive?base*1.8:base;
+
+  /* move player */
+  const h=player.body[0];
+  const nx=clamp(h.x+player.dir.x*speed,0,MAP_W);
+  const ny=clamp(h.y+player.dir.y*speed,0,MAP_H);
+  player.body.unshift({x:nx,y:ny});
+  if(player.body.length>player.len) player.body.pop();
+
+  /* eat food */
+  food=food.filter(f=>dist(f,player.body[0])>10 || !++player.len);
+
+  /* snakes ----------------------------------------------------- */
+  if(mode!=="explosion") updateSnakes();
+  else                    updateExplosion();
+
+  /* COLLISIONS player & snakes:
+     Player dies if hits snake body (not head).
+     Snake dies if snake head hits player head.
+     Snake dies if player head hits snake head.
+  ------------------------------------------------------------ */
+  for(const s of snakes){
+    if(!s.alive) continue;
+
+    const snakeHead = s.body[0];
+    // Check player head vs snake head collision
+    if(dist(player.body[0],snakeHead)<10){
+      s.alive = false; // snake dies
+      continue;
+    }
+
+    // Check player head hitting snake body segments (except head)
+    for(let i=1; i<s.body.length; i++){
+      if(dist(player.body[0], s.body[i])<8){
+        playerDies();
+        break;
+      }
+    }
+
+    // Check snake head hitting player body segments except head
+    for(let i=1; i<player.body.length; i++){
+      if(dist(snakeHead, player.body[i])<8){
+        s.alive = false; // snake dies if hits player's body (not head)
+        break;
+      }
+    }
+  }
+
+  /* assassination win */
+  if(mode==="assassin" && targets.every(t=>!t.alive)){
+    showMissionComplete();
+  }
+
+  /* camera follow */
+  camera.x=clamp(player.body[0].x-cv.width/2,0,MAP_W-cv.width);
+  camera.y=clamp(player.body[0].y-cv.height/2,0,MAP_H-cv.height);
+
+}
+
+/* ----- snakes logic (assassin / classical) -------------------- */
+function updateSnakes(){
+  snakes.forEach(s=>{
+    if(!s.alive) return;
+    if(mode==="assassin" || mode==="classical"){
+      if(s.blue){
+        // Blue snakes chase the player aggressively in assassin mode
+        const trg = player.body[0];
+        s.dir = norm(trg.x - s.body[0].x, trg.y - s.body[0].y);
+        moveSnake(s, 1.5);
+      } else {
+        // Yellow snakes also aggressively chase the player
+        const trg = player.body[0];
+        // Add slight random noise to avoid perfect tracking
+        const noiseX = (Math.random() - 0.5) * 0.4;
+        const noiseY = (Math.random() - 0.5) * 0.4;
+        s.dir = norm(trg.x - s.body[0].x + noiseX, trg.y - s.body[0].y + noiseY);
+        moveSnake(s, 1.3);
+      }
+    }
+  });
+}
+function moveSnake(s,v){
+  const h=s.body[0];
+  const nx=clamp(h.x+s.dir.x*v,0,MAP_W), ny=clamp(h.y+s.dir.y*v,0,MAP_H);
+  s.body.unshift({x:nx,y:ny});
+  if(s.body.length>s.len) s.body.pop();
+}
+
+/* ----- explosion-mode logic ----------------------------------- */
+function updateExplosion(){
+  /* tanks move & shoot */
+  tanks.forEach(t=>{
+    if(t.dead) return;
+    const d=norm(player.body[0].x-t.x,player.body[0].y-t.y);
+    t.x=clamp(t.x+d.x*0.6,0,MAP_W);
+    t.y=clamp(t.y+d.y*0.6,0,MAP_H);
+    if(--t.cd<=0){ fire(tankShots,t.x,t.y,d,1.7,6); t.cd=110; }
+  });
+
+  /* tank shells */
+  tankShots=tankShots.filter(s=>{
+    s.x+=s.dir.x*s.speed; s.y+=s.dir.y*s.speed;
+    if(dist(s,player.body[0])<s.r+6) return playerDies(),false;
+    return s.x>-20&&s.x<MAP_W+20&&s.y>-20&&s.y<MAP_H+20;
+  });
+
+  /* player shots */
+  plyShots=plyShots.filter(s=>{
+    s.x+=s.dir.x*s.speed; s.y+=s.dir.y*s.speed;
+    for(const t of tanks){
+      if(t.dead) continue;
+      if(dist(s,t)<s.r+t.r){
+        t.hp--;
+        if(t.hp<=0) t.dead=true;
+        return false;
+      }
+    }
+    return s.x>-20&&s.x<MAP_W+20&&s.y>-20&&s.y<MAP_H+20;
+  });
+
+  /* remove dead tanks & advance level */
+  tanks=tanks.filter(t=>!t.dead);
+  if(!tanks.length){
+    ++level; newLevel(); spawnPlayer();
   }
 }
 
-function spawnBombs(count) {
-  for (let i = 0; i < count; i++) {
-    bombs.push({ x: Math.random() * MAP_WIDTH, y: Math.random() * MAP_HEIGHT, r: 8 });
+/* ----- death -------------------------------------------------- */
+function playerDies(){
+  player.alive=false; boostActive=false;
+}
+
+/* ----- mission complete screen ---------------------------------- */
+function showMissionComplete(){
+  cancelAnimationFrame(loopID);
+  ctx.fillStyle="rgba(0,0,0,0.75)";
+  ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle="#0f0";
+  ctx.font="48px Arial";
+  ctx.textAlign="center";
+  ctx.fillText("MISSION ACCOMPLISHED", cv.width/2, cv.height/2 - 20);
+
+  // Show "NEXT ASSASSINATION" button
+  if(!document.getElementById("nextAssBtn")){
+    const btn = document.createElement("button");
+    btn.id = "nextAssBtn";
+    btn.textContent = "NEXT ASSASSINATION";
+    btn.style.position = "absolute";
+    btn.style.left = "50%";
+    btn.style.top = (cv.height/2 + 20) + "px";
+    btn.style.transform = "translateX(-50%)";
+    btn.style.padding = "12px 24px";
+    btn.style.fontSize = "20px";
+    btn.style.zIndex = 1000;
+    btn.style.cursor = "pointer";
+    gameBox.appendChild(btn);
+
+    btn.onclick = () => {
+      btn.remove();
+      level++;
+      newLevel();
+      spawnPlayer();
+      loopID = requestAnimationFrame(loop);
+    };
   }
 }
 
-function spawnTanks(count) {
-  let spacing = MAP_WIDTH / count;
-  for (let i = 0; i < count; i++) {
-    let x = spacing * i + spacing / 2;
-    let y = i % 2 ? MAP_HEIGHT : 0;
-    tanks.push({ x, y, angle: 0 });
+/* ===============================================================
+   DRAW
+================================================================ */
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  /* world border */
+  ctx.lineWidth=4; ctx.strokeStyle="#fff";
+  ctx.strokeRect(-camera.x,-camera.y,MAP_W,MAP_H);
+
+  food.forEach(f=>dot(f,"red",4));
+  bombs.forEach(b=>dot(b,"#111",b.r));
+  tanks.forEach(t=>{
+    if(t.dead) return;
+    dot(t,"gray",t.r);
+    drawHealthBar(t);
+  });
+  tankShots.forEach(s=>dot(s,"orange",s.r*2)); // bigger on minimap, handled in minimap draw
+  plyShots.forEach(s=>dot(s,"yellow",s.r));
+
+  snakes.forEach(s=>{
+    if(!s.alive) return;
+    const c=s.blue?"blue":"yellow";
+    s.body.forEach(seg=>dot(seg,c,6));
+  });
+  player.body.forEach(seg=>dot(seg,"lime",6));
+
+  /* Game-over overlay */
+  if(!player.alive){
+    ctx.fillStyle="#fff"; ctx.font="40px Arial"; ctx.textAlign="center";
+    ctx.fillText("Game Over",cv.width/2,cv.height/2-20);
+    showRestart();
   }
+
+  /* minimap */
+  if(mapOn) drawMinimap();
 }
 
-function spawnPlayer() {
-  player = {
-    x: MAP_WIDTH / 2,
-    y: MAP_HEIGHT / 2,
-    dir: { x: 0, y: -1 },
-    speed: 6,
-    len: 6,
-    body: [],
-    alive: true,
-    blue: false,
+/* ===============================================================
+   HEALTH BAR FOR TANKS
+================================================================ */
+function drawHealthBar(t){
+  const barW=44, barH=6;
+  const x= t.x - barW/2 - camera.x;
+  const y= t.y - t.r - 12 - camera.y;
+  ctx.fillStyle="black";
+  ctx.fillRect(x,y,barW,barH);
+  ctx.fillStyle="lime";
+  ctx.fillRect(x,y,barW*(t.hp/4),barH);
+  ctx.strokeStyle="white";
+  ctx.lineWidth=1;
+  ctx.strokeRect(x,y,barW,barH);
+}
+
+/* ===============================================================
+   MINIMAP
+================================================================ */
+function drawMinimap(){
+  const SIZE=180, PAD=20, sx=cv.width-SIZE-PAD, sy=cv.height-SIZE-PAD;
+  const sc = SIZE/Math.max(MAP_W,MAP_H);
+
+  ctx.save();
+  ctx.fillStyle="rgba(0,0,0,.6)";
+  ctx.fillRect(sx,sy,SIZE,SIZE);
+  ctx.strokeStyle="#fff"; ctx.lineWidth=2;
+  ctx.strokeRect(sx,sy,SIZE,SIZE);
+
+  const pnt=(e,c,r=3)=>{ctx.fillStyle=c;ctx.beginPath();
+    ctx.arc(sx+e.x*sc,sy+e.y*sc,r,0,6.283);ctx.fill();};
+
+  food.forEach(f=>pnt(f,"red",2));
+  bombs.forEach(b=>pnt(b,"#111",2));
+  snakes.forEach(s=>s.alive&&pnt(s.body[0],s.blue?"blue":"yellow",3));
+  tanks.forEach(t=>pnt(t,"gray",6));
+  tankShots.forEach(s=>pnt(s,"orange",4));
+  plyShots.forEach(s=>pnt(s,"yellow",2));
+  pnt(player.body[0],"lime",4);
+  ctx.restore();
+}
+
+/* ===============================================================
+   RESTART BUTTON
+================================================================ */
+function showRestart(){
+  if(document.getElementById("restartBtn")) return;
+  const b=document.createElement("button");
+  b.id="restartBtn"; b.textContent="Restart";
+  b.onclick=()=>{
+    b.remove(); level=1; boostActive=false; boostTime=0; coolTime=0;
+    newLevel(); spawnPlayer(); updateInstructions();
   };
-
-  for (let i = 0; i < player.len; i++) {
-    player.body.push({ x: player.x, y: player.y + i * 10 });
-  }
-
-  cam.x = player.x - canvas.width / 2;
-  cam.y = player.y - canvas.height / 2;
+  gameBox.appendChild(b);
 }
 
-// controls stuff
-const keys = {};
-window.addEventListener("keydown", e => {
-  keys[e.key.toLowerCase()] = true;
-  if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) e.preventDefault();
-});
-window.addEventListener("keyup", e => {
-  keys[e.key.toLowerCase()] = false;
-});
-
-// joystick stuff
-let joystickActive = false;
-let joyStartPos = null;
-let joyCurrentPos = null;
-let joyVec = { x: 0, y: 0 };
-
-joystick.addEventListener("touchstart", e => {
-  e.preventDefault();
-  joystickActive = true;
-  const t = e.touches[0];
-  const rect = joystick.getBoundingClientRect();
-  joyStartPos = { x: t.clientX, y: t.clientY };
-  joyCurrentPos = { x: t.clientX, y: t.clientY };
-  moveKnob();
-});
-joystick.addEventListener("touchmove", e => {
-  if (!joystickActive) return;
-  e.preventDefault();
-  const t = e.touches[0];
-  joyCurrentPos = { x: t.clientX, y: t.clientY };
-  moveKnob();
-});
-joystick.addEventListener("touchend", e => {
-  e.preventDefault();
-  joystickActive = false;
-  joyVec = { x: 0, y: 0 };
-  joystickKnob.style.transform = "translate(-50%, -50%)";
-});
-
-function moveKnob() {
-  const rect = joystick.getBoundingClientRect();
-  let dx = joyCurrentPos.x - (rect.left + rect.width / 2);
-  let dy = joyCurrentPos.y - (rect.top + rect.height / 2);
-  let dist = Math.min(Math.hypot(dx, dy), rect.width / 2);
-  let angle = Math.atan2(dy, dx);
-  let knobX = dist * Math.cos(angle);
-  let knobY = dist * Math.sin(angle);
-  joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
-
-  joyVec.x = knobX / (rect.width / 2);
-  joyVec.y = knobY / (rect.height / 2);
+/* ===============================================================
+   INSTRUCTION TEXT
+================================================================ */
+function updateInstructions(){
+  const base="WASD/Arrows = Move M = Minimap Space = Toggle Nitro";
+  const extra=mode==="explosion"?" J = Shoot":
+              mode==="assassin" ?" Goal: Destroy blue snakes": "";
+  instrTxt.textContent=base+extra;
+  toggle(instrTxt,true);
 }
-
-// main loop
-function mainLoop() {
-  updateGame();
-  drawGame();
-  animationFrameId = requestAnimationFrame(mainLoop);
-}
-
-function updateGame() {
-  // get input dir from keyboard or joystick
-  let inputX = 0;
-  let inputY = 0;
-
-  if (joystickActive) {
-    inputX = joyVec.x;
-    inputY = joyVec.y;
-  } else {
-    if (keys["arrowup"] || keys["w"]) inputY -= 1;
-    if (keys["arrowdown"] || keys["s"]) inputY += 1;
-    if (keys["arrowleft"] || keys["a"]) inputX -= 1;
-    if (keys["arrowright"] || keys["d"]) inputX += 1;
-  }
-
-  if (inputX !== 0 || inputY !== 0) {
-    const norm = normalizeVec(inputX, inputY);
-    player.dir = norm;
-  }
-
-  // nitro boost handling
-  if (keys[" "]) {
-    if (boostTimeLeft > 0) {
-      boostActive = true;
-      boostTimeLeft--;
-    } else {
-      boostActive = false;
-      if (cooldownTimeLeft === 0) cooldownTimeLeft = COOLDOWN_DURATION;
-    }
-  } else {
-    boostActive = false;
-    if (boostTimeLeft < BOOST_DURATION && cooldownTimeLeft === 0) {
-      boostTimeLeft++;
-    }
-  }
-
-  if (cooldownTimeLeft > 0) cooldownTimeLeft--;
-
-  // update nitro bar UI
-  nitroFill.style.width = `${(boostTimeLeft / BOOST_DURATION) * 100}%`;
-
-  // move player
-  let spd = boostActive ? player.speed * 2.1 : player.speed;
-  player.x += player.dir.x * spd;
-  player.y += player.dir.y * spd;
-
-  // keep inside circular map bounds
-  const centerX = MAP_WIDTH / 2;
-  const centerY = MAP_HEIGHT / 2;
-  const maxRadius = MAP_WIDTH / 2 - 20;
-  let distToCenter = dist(player, { x: centerX, y: centerY });
-  if (distToCenter > maxRadius) {
-    let dirToCenter = normalizeVec(centerX - player.x, centerY - player.y);
-    player.x = centerX - dirToCenter.x * maxRadius;
-    player.y = centerY - dirToCenter.y * maxRadius;
-  }
-
-  // update player body
-  player.body.unshift({ x: player.x, y: player.y });
-  while (player.body.length > player.len * 5) player.body.pop();
-
-  cam.x = player.x - canvas.width / 2;
-  cam.y = player.y - canvas.height / 2;
-
-  // simple AI snake wandering
-  snakes.forEach(s => {
-    if (Math.random() < 0.02) {
-      s.dir = normalizeVec(Math.random() - 0.5, Math.random() - 0.5);
-    }
-    s.body[0].x += s.dir.x * 2;
-    s.body[0].y += s.dir.y * 2;
-
-    s.body.unshift({ x: s.body[0].x, y: s.body[0].y });
-    while (s.body.length > s.len * 5) s.body.pop();
-  });
-}
-
-function drawGame() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // map circle border
-  ctx.strokeStyle = "#555";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(MAP_WIDTH / 2 - cam.x, MAP_HEIGHT / 2 - cam.y, MAP_WIDTH / 2 - 10, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // draw food
-  food.forEach(f => drawCircle(f, "red", 6));
-
-  // bombs
-  bombs.forEach(b => {
-    ctx.fillStyle = "orange";
-    ctx.beginPath();
-    ctx.arc(b.x - cam.x, b.y - cam.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // tanks
-  tanks.forEach(t => {
-    ctx.fillStyle = "gray";
-    ctx.fillRect(t.x - cam.x - 15, t.y - cam.y - 15, 30, 30);
-  });
-
-  // snakes (blue or yellow)
-  snakes.forEach(s => {
-    const color = s.blue ? "blue" : "yellow";
-    s.body.forEach((p, i) => {
-      drawCircle(p, color, 5 - i * 0.05);
-    });
-  });
-
-  // player snake
-  player.body.forEach((p, i) => {
-    drawCircle(p, "white", 6 - i * 0.08);
-  });
-
-  // instructions text
-  instructionTxt.textContent = currentMode === "assassin"
-    ? "Destroy all blue snakes"
-    : currentMode === "classical"
-      ? "Eat food and survive"
-      : currentMode === "explosion"
-        ? "Avoid bombs and tanks"
-        : "";
-  toggle(instructionTxt, true);
-}
-
-// resize canvas when window size changes
-window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
-
-function updateInstructions() {
-  // could add more instruction updates here
-}
-
-// init on page load
-function init() {
-  toggle(menu, true);
-  toggle(usernameSection, false);
-  toggle(modeSection, false);
-  toggle(gameContainer, false);
-  toggle(joystick, window.matchMedia("(pointer: coarse)").matches);
-}
-
-init();
