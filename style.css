@@ -1,4 +1,4 @@
-/* Base styles */
+/* Reset base */
 * {
   margin: 0;
   padding: 0;
@@ -10,7 +10,6 @@ body {
   color: #fff;
   font-family: Arial, sans-serif;
   overflow: hidden;
-  user-select: none;
 }
 
 canvas {
@@ -19,8 +18,11 @@ canvas {
   cursor: none;
 }
 
-/* Menu and UI containers */
-#menu, #usernameSection, #modeSection, #gameContainer {
+/* Menus */
+#menu,
+#usernameSection,
+#modeSection,
+#gameContainer {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -29,55 +31,52 @@ canvas {
   padding: 20px;
   border-radius: 10px;
   text-align: center;
-  max-width: 90vw;
 }
 
 .hidden {
-  display: none !important;
+  display: none;
 }
 
 button {
   background: #444;
   border: none;
-  color: white;
+  color: #fff;
   padding: 10px 20px;
-  margin: 8px;
   font-size: 1rem;
   border-radius: 6px;
+  margin: 8px;
   cursor: pointer;
+  transition: background 0.2s ease-in-out;
 }
 
 button:hover {
   background: #666;
 }
 
-/* Input */
 input[type="text"] {
-  padding: 8px 12px;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  width: 200px;
+  margin: 10px 0;
   font-size: 1rem;
-  border-radius: 6px;
-  border: 2px solid #555;
-  outline: none;
-  width: 180px;
-  color: #000;
 }
 
-/* Game UI text */
+/* UI elements */
 #assassinText {
   position: absolute;
   top: 15px;
   left: 15px;
   font-weight: bold;
-  font-size: 1.3rem;
-  color: #0ff;
+  font-size: 1.2rem;
+  color: #00f;
 }
 
 #instructionText {
   position: absolute;
-  top: 60px;
+  top: 50px;
   left: 15px;
-  font-size: 1.1rem;
-  color: #ddd;
+  font-size: 1rem;
 }
 
 #levelCounter {
@@ -85,34 +84,33 @@ input[type="text"] {
   top: 15px;
   right: 15px;
   font-weight: bold;
-  font-size: 1.3rem;
-  color: #0ff;
+  font-size: 1.2rem;
+  color: #0f0;
 }
 
-/* Nitro Bar */
+/* Nitro bar */
 #nitroContainer {
   position: absolute;
   bottom: 25px;
   right: 25px;
   width: 200px;
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: #ccc;
-  text-align: left;
 }
 
 #nitroBar {
-  background: #333;
-  border-radius: 8px;
+  background: #555;
   height: 16px;
-  margin-top: 5px;
+  border-radius: 8px;
   overflow: hidden;
+  margin-top: 4px;
 }
 
 #nitroFill {
   height: 100%;
   width: 0%;
-  background: #0ff;
-  transition: width 0.1s ease;
+  background: #0cf;
+  transition: width 0.1s ease-in-out;
 }
 
 /* Joystick */
@@ -126,21 +124,22 @@ input[type="text"] {
 }
 
 #joystick-base {
-  position: absolute;
   width: 100px;
   height: 100px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 50%;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 #joystick-knob {
-  position: absolute;
   width: 60px;
   height: 60px;
-  background: #888;
+  background: #fff;
   border-radius: 50%;
+  position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  pointer-events: none;
 }
