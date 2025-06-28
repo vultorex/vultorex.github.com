@@ -3,8 +3,8 @@
 ================================================================ */
 const MAP_W = 4000, MAP_H = 4000;
 const FPS          = 60;
-const BOOST_SECS   = 8;
-const CD_SECS      = 10;
+const BOOST_SECS   = 8;                        // nitro duration
+const CD_SECS      = 10;                       // cooldown duration
 const BOOST_TICKS  = BOOST_SECS*FPS;
 const CD_TICKS     = CD_SECS*FPS;
 
@@ -25,14 +25,12 @@ const instrTxt    = qs("#instructionText");
 const lvlTxt      = qs("#levelCounter");
 const nitroBox    = qs("#nitroContainer");
 const nitroFill   = qs("#nitroFill");
-const nitroLabel  = qs("#nitroLabel");
-const backBtn     = qs("#backBtn");
 
 /* ===============================================================
    GLOBAL STATE
 ================================================================ */
 let playerName  = "";
-let mode        = null;
+let mode        = null;          // "assassin" | "classical" | "explosion"
 let level       = 1;
 let loopID      = 0;
 let camera      = {x:0,y:0};
@@ -45,8 +43,8 @@ let mapOn = true;
 
 /* nitro */
 let boostActive = false;
-let boostTime   = 0;
-let coolTime    = 0;
+let boostTime   = 0;     // remaining ticks
+let coolTime    = 0;     // remaining ticks
 
 /* ===============================================================
    HELPERS
@@ -72,7 +70,7 @@ qs("#assassinMode").onclick =()=>initMode("assassin");
 qs("#classicalMode").onclick=()=>initMode("classical");
 qs("#explosionMode").onclick=()=>initMode("explosion");
 qs("#backToMenu").onclick   =()=>exitGame();
-backBtn.onclick = ()=>exitGame();
+
 /* ===============================================================
    INITIALISERS
 ================================================================ */
@@ -138,15 +136,13 @@ function spawnTanks(count){
   }
 }
 function spawnPlayer(){
-  player = {
-    name: playerName,
-    body: [{x: MAP_W / 2, y: MAP_H / 2}],
-    dir: {x: 1, y: 0},
-    len: 6,
-    alive: true
-  };
+  let ok=false;
+  while(!ok){
+    const x=rand(MAP_W),y=rand(MAP_H);
+    ok=snakes.every(s=>dist({x,y},s.body[0])>150);
+    if(ok) player={name:playerName,body:[{x,y}],dir:{x:1,y:0},len:6,alive:true};
+  }
 }
-
 /* shots */
 function fire(arr,x,y,dir,speed,r){arr.push({x,y,dir,speed,r})}
 
@@ -155,8 +151,8 @@ function fire(arr,x,y,dir,speed,r){arr.push({x,y,dir,speed,r})}
 ================================================================ */
 document.addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();
-  if(k==="m") mapOn=!mapOn;
-  if(!player?.alive) return;
+  if(k==="m")            mapOn=!mapOn;
+  if(!player?.alive)     return;
 
   if(["w","arrowup"].includes(k))    player.dir={x:0,y:-1};
   if(["s","arrowdown"].includes(k))  player.dir={x:0,y:1};
@@ -165,10 +161,10 @@ document.addEventListener("keydown",e=>{
 
   /* nitro toggle */
   if(k===" "){
-    if(boostActive){
+    if(boostActive){        // turn OFF early
       boostActive=false; coolTime=CD_TICKS;
-    }else if(coolTime===0){
-      boostActive=true; boostTime=BOOST_TICKS;
+    }else if(coolTime===0){ // turn ON
+      boostActive=true;  boostTime=BOOST_TICKS;
     }
   }
 
@@ -178,6 +174,7 @@ document.addEventListener("keydown",e=>{
     if(player.dir.x||player.dir.y) fire(plyShots,h.x,h.y,{...player.dir},3.5,5);
   }
 });
+
 /* ===============================================================
    GAME LOOP
 ================================================================ */
@@ -346,11 +343,11 @@ function showMissionComplete(){
   ctx.textAlign="center";
   ctx.fillText("MISSION ACCOMPLISHED", cv.width/2, cv.height/2 - 20);
 
-  // Show "Next Assassination" button
+  // Show "NEXT ASSASSINATION" button
   if(!document.getElementById("nextAssBtn")){
     const btn = document.createElement("button");
     btn.id = "nextAssBtn";
-    btn.textContent = "Next Assassination";
+    btn.textContent = "NEXT ASSASSINATION";
     btn.style.position = "absolute";
     btn.style.left = "50%";
     btn.style.top = (cv.height/2 + 20) + "px";
@@ -369,30 +366,8 @@ function showMissionComplete(){
       loopID = requestAnimationFrame(loop);
     };
   }
-
-  // Show "Back" button on bottom right
-  if(!document.getElementById("backBtn")){
-    const backBtn = document.createElement("button");
-    backBtn.id = "backBtn";
-    backBtn.textContent = "Back";
-    backBtn.style.position = "absolute";
-    backBtn.style.right = "20px";
-    backBtn.style.bottom = "20px";
-    backBtn.style.padding = "10px 20px";
-    backBtn.style.fontSize = "18px";
-    backBtn.style.cursor = "pointer";
-    backBtn.style.zIndex = 1000;
-    gameBox.appendChild(backBtn);
-
-    backBtn.onclick = () => {
-      cancelAnimationFrame(loopID);
-      backBtn.remove();
-      const nextBtn = document.getElementById("nextAssBtn");
-      if(nextBtn) nextBtn.remove();
-      exitGame();
-    };
-  }
 }
+
 /* ===============================================================
    DRAW
 ================================================================ */
